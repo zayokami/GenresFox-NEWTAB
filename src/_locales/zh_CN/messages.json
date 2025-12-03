@@ -34,5 +34,26 @@
     },
     "dragDropText": {
         "message": "拖拽图片到此处或点击上传"
+    },
+    "wallpaperSettings": {
+        "message": "壁纸设置"
+    },
+    "blurAmount": {
+        "message": "模糊程度"
+    },
+    "vignetteAmount": {
+        "message": "暗角程度"
+    },
+    "resetShortcuts": {
+        "message": "重置快捷方式"
+    },
+    "searchBoxSettings": {
+        "message": "搜索框设置"
+    },
+    "searchBoxWidth": {
+        "message": "宽度"
+    },
+    "searchBoxPosition": {
+        "message": "垂直位置"
     }
 }
