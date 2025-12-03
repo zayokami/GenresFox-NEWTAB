@@ -34,5 +34,26 @@
     },
     "dragDropText": {
         "message": "Drag & Drop image here or click to upload"
+    },
+    "wallpaperSettings": {
+        "message": "Wallpaper Settings"
+    },
+    "blurAmount": {
+        "message": "Blur Amount"
+    },
+    "vignetteAmount": {
+        "message": "Vignette Amount"
+    },
+    "resetShortcuts": {
+        "message": "Reset Shortcuts"
+    },
+    "searchBoxSettings": {
+        "message": "Search Box Settings"
+    },
+    "searchBoxWidth": {
+        "message": "Width"
+    },
+    "searchBoxPosition": {
+        "message": "Vertical Position"
     }
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en-US">
 
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
         </div>
 
         <!-- Shortcuts Grid -->
-        <div id="shortcuts" class="shortcuts-grid fade-in delay-2"></div>
+        <div id="shortcuts" class="shortcuts-grid"></div>
     </div>
 
     <!-- Settings Button -->
@@ -55,17 +55,60 @@
                     <div class="setting-group">
                         <label data-i18n="uploadWallpaper">Upload Wallpaper</label>
                         <div class="upload-zone" id="dropZone">
-                            <div class="upload-content">
+                            <div class="upload-content" id="uploadContent">
                                 <svg viewBox="0 0 24 24" width="48" height="48">
                                     <path fill="currentColor"
                                         d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
                                 </svg>
                                 <p data-i18n="dragDropText">Drag & Drop image here or click to upload</p>
                             </div>
+                            <div class="wallpaper-preview" id="wallpaperPreview" style="display: none;">
+                                <img id="previewImg" src="" alt="Wallpaper Preview">
+                            </div>
                             <input type="file" id="wallpaperUpload" accept="image/*" hidden>
                         </div>
                         <button id="resetWallpaper" class="btn-secondary" data-i18n="resetWallpaper">Reset to
                             Default</button>
+                    </div>
+
+                    <div class="setting-group" id="wallpaperControls" style="display: none;">
+                        <h3 data-i18n="wallpaperSettings">Wallpaper Settings</h3>
+
+                        <div class="control-item">
+                            <label>
+                                <span data-i18n="blurAmount">Blur Amount</span>
+                                <span class="control-value" id="blurValue">0</span>
+                            </label>
+                            <input type="range" id="blurSlider" min="0" max="100" value="0" class="slider">
+                        </div>
+
+                        <div class="control-item">
+                            <label>
+                                <span data-i18n="vignetteAmount">Vignette Amount</span>
+                                <span class="control-value" id="vignetteValue">0</span>
+                            </label>
+                            <input type="range" id="vignetteSlider" min="0" max="100" value="0" class="slider">
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <h3 data-i18n="searchBoxSettings">Search Box Settings</h3>
+
+                        <div class="control-item">
+                            <label>
+                                <span data-i18n="searchBoxWidth">Width</span>
+                                <span class="control-value" id="searchWidthValue">600px</span>
+                            </label>
+                            <input type="range" id="searchWidthSlider" min="300" max="1000" value="600" class="slider">
+                        </div>
+
+                        <div class="control-item">
+                            <label>
+                                <span data-i18n="searchBoxPosition">Vertical Position</span>
+                                <span class="control-value" id="searchPositionValue">40%</span>
+                            </label>
+                            <input type="range" id="searchPositionSlider" min="10" max="70" value="40" class="slider">
+                        </div>
                     </div>
                 </div>
 
@@ -86,6 +129,10 @@
                             <input type="text" id="newShortcutName" placeholder="Name">
                             <input type="text" id="newShortcutUrl" placeholder="URL (e.g. https://github.com)">
                             <button id="addShortcutBtn" class="btn-primary" data-i18n="add">Add</button>
+                        </div>
+                        <div style="margin-top: 16px; text-align: right;">
+                            <button id="resetShortcutsBtn" class="btn-danger" data-i18n="resetShortcuts">Reset
+                                Shortcuts</button>
                         </div>
                     </div>
                 </div>

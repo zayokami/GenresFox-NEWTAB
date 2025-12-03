@@ -27,9 +27,6 @@
 - **💾 Icon Caching**: Automatically caches search engine icons for faster loading
 - **🎯 Clean & Minimal**: Distraction-free interface focused on what matters
 
-### 📸 Screenshots
-
-> Add your screenshots here
 
 ### 🚀 Installation
 
@@ -151,9 +148,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **💾 图标缓存**: 自动缓存搜索引擎图标，加快加载速度
 - **🎯 简洁极简**: 无干扰界面，专注于重要内容
 
-### 📸 截图
-
-> 在此添加您的截图
 
 ### 🚀 安装
 

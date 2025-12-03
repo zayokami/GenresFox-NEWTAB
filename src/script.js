@@ -1,24 +1,28 @@
-// DOM Elements
+// Elements
 const searchInput = document.getElementById("search");
-const engineSelector = document.getElementById("engineSelector");
-const selectedEngineIcon = document.getElementById("selectedEngineIcon");
-const engineDropdown = document.getElementById("engineDropdown");
-
-// Settings Elements
-const settingsBtn = document.getElementById("settingsBtn");
+const enginesList = document.getElementById("enginesList");
+const shortcutsList = document.getElementById("shortcutsList");
+const shortcutsGrid = document.getElementById("shortcuts");
+const settingsBtn = document.querySelector(".settings-btn");
 const settingsModal = document.getElementById("settingsModal");
-const closeSettings = document.getElementById("closeSettings");
+const closeSettings = document.querySelector(".close-btn");
 const tabBtns = document.querySelectorAll(".tab-btn");
 const tabContents = document.querySelectorAll(".tab-content");
 const wallpaperUpload = document.getElementById("wallpaperUpload");
 const resetWallpaper = document.getElementById("resetWallpaper");
-const enginesList = document.getElementById("enginesList");
 const addEngineBtn = document.getElementById("addEngineBtn");
-const shortcutsList = document.getElementById("shortcutsList");
 const addShortcutBtn = document.getElementById("addShortcutBtn");
-const shortcutsGrid = document.getElementById("shortcuts");
+const engineSelector = document.querySelector(".engine-selector");
+const selectedEngineIcon = document.querySelector(".selected-engine");
+const engineDropdown = document.querySelector(".engine-dropdown");
 
-// Default Configuration
+// Search box customization elements
+const searchWidthSlider = document.getElementById("searchWidthSlider");
+const searchPositionSlider = document.getElementById("searchPositionSlider");
+const searchWidthValue = document.getElementById("searchWidthValue");
+const searchPositionValue = document.getElementById("searchPositionValue");
+
+// Default Data
 const defaultEngines = {
     google: {
         name: "Google",
@@ -37,10 +41,22 @@ const defaultEngines = {
     }
 };
 
+const defaultShortcuts = [
+    { name: "GitHub", url: "https://github.com", icon: "https://github.com/favicon.ico" },
+    { name: "YouTube", url: "https://youtube.com", icon: "https://www.youtube.com/favicon.ico" },
+    { name: "Bilibili", url: "https://bilibili.com", icon: "https://www.bilibili.com/favicon.ico" },
+    { name: "Gmail", url: "https://mail.google.com", icon: "https://mail.google.com/favicon.ico" }
+];
+
 // State
 let engines = JSON.parse(localStorage.getItem("engines")) || defaultEngines;
 let currentEngine = localStorage.getItem("preferredEngine") || "google";
-let shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+let shortcuts = JSON.parse(localStorage.getItem("shortcuts"));
+
+if (!shortcuts || shortcuts.length === 0) {
+    shortcuts = defaultShortcuts;
+    localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+}
 
 // --- Helper Functions ---
 function saveEngines() {
@@ -120,10 +136,19 @@ function renderEnginesList() {
         const engine = engines[key];
         const div = document.createElement("div");
         div.className = "list-item";
-        div.innerHTML = `
-            <span><img src="${getIconSrc(key, engine.icon)}" width="20" height="20"> ${engine.name}</span>
-            ${!defaultEngines[key] ? `<span class="delete-btn" onclick="deleteEngine('${key}')">&times;</span>` : ''}
-        `;
+
+        const spanInfo = document.createElement("span");
+        spanInfo.innerHTML = `<img src="${getIconSrc(key, engine.icon)}" width="20" height="20"> ${engine.name}`;
+        div.appendChild(spanInfo);
+
+        if (!defaultEngines[key]) {
+            const deleteBtn = document.createElement("span");
+            deleteBtn.className = "delete-btn";
+            deleteBtn.innerHTML = "&times;";
+            deleteBtn.addEventListener("click", () => deleteEngine(key));
+            div.appendChild(deleteBtn);
+        }
+
         enginesList.appendChild(div);
     });
 }
@@ -133,10 +158,17 @@ function renderShortcutsList() {
     shortcuts.forEach((shortcut, index) => {
         const div = document.createElement("div");
         div.className = "list-item";
-        div.innerHTML = `
-            <span><img src="${shortcut.icon}" width="20" height="20"> ${shortcut.name}</span>
-            <span class="delete-btn" onclick="deleteShortcut(${index})">&times;</span>
-        `;
+
+        const spanInfo = document.createElement("span");
+        spanInfo.innerHTML = `<img src="${shortcut.icon}" width="20" height="20"> ${shortcut.name}`;
+        div.appendChild(spanInfo);
+
+        const deleteBtn = document.createElement("span");
+        deleteBtn.className = "delete-btn";
+        deleteBtn.innerHTML = "&times;";
+        deleteBtn.addEventListener("click", () => deleteShortcut(index));
+        div.appendChild(deleteBtn);
+
         shortcutsList.appendChild(div);
     });
 }
@@ -197,22 +229,144 @@ tabBtns.forEach(btn => {
     });
 });
 
-// Wallpaper
-const dropZone = document.getElementById("dropZone");
+// --- IndexedDB Helper ---
+const dbName = "GenresFoxDB";
+const storeName = "wallpapers";
 
-function handleFile(file) {
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+    });
+}
+
+async function saveWallpaperToDB(file) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], "readwrite");
+        const store = transaction.objectStore(storeName);
+        const request = store.put(file, "currentWallpaper");
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function getWallpaperFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], "readonly");
+        const store = transaction.objectStore(storeName);
+        const request = store.get("currentWallpaper");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function deleteWallpaperFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([storeName], "readwrite");
+        const store = transaction.objectStore(storeName);
+        const request = store.delete("currentWallpaper");
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// --- Wallpaper Logic ---
+const dropZone = document.getElementById("dropZone");
+const uploadContent = document.getElementById("uploadContent");
+const wallpaperPreview = document.getElementById("wallpaperPreview");
+const previewImg = document.getElementById("previewImg");
+const wallpaperControls = document.getElementById("wallpaperControls");
+const blurSlider = document.getElementById("blurSlider");
+const vignetteSlider = document.getElementById("vignetteSlider");
+const blurValue = document.getElementById("blurValue");
+const vignetteValue = document.getElementById("vignetteValue");
+
+// Load saved settings
+let wallpaperSettings = JSON.parse(localStorage.getItem("wallpaperSettings")) || {
+    blur: 0,
+    vignette: 0
+};
+
+let searchBoxSettings = JSON.parse(localStorage.getItem("searchBoxSettings")) || {
+    width: 600,
+    position: 40
+};
+
+let currentWallpaperUrl = null;
+
+function setWallpaper(url) {
+    // Revoke old URL to prevent memory leaks if it's a blob URL
+    if (currentWallpaperUrl && currentWallpaperUrl.startsWith('blob:') && currentWallpaperUrl !== url) {
+        URL.revokeObjectURL(currentWallpaperUrl);
+    }
+    currentWallpaperUrl = url;
+    document.documentElement.style.setProperty('--wallpaper-image', `url(${url})`);
+}
+
+function applyWallpaperEffects() {
+    const blur = wallpaperSettings.blur;
+    const vignette = wallpaperSettings.vignette;
+
+    // Set blur using CSS variable
+    document.documentElement.style.setProperty('--wallpaper-blur', `${blur / 10}px`);
+
+    // Set vignette using CSS variable
+    if (vignette > 0) {
+        const vignetteStrength = vignette / 100;
+        const vignetteGradient = `radial-gradient(circle, transparent 0%, rgba(0,0,0,${vignetteStrength * 0.7}) 100%)`;
+        document.documentElement.style.setProperty('--wallpaper-vignette', vignetteGradient);
+    } else {
+        document.documentElement.style.setProperty('--wallpaper-vignette', 'transparent');
+    }
+}
+
+function applySearchBoxSettings() {
+    const width = searchBoxSettings.width;
+    const position = searchBoxSettings.position;
+
+    document.documentElement.style.setProperty('--search-width', `${width}px`);
+    document.documentElement.style.setProperty('--search-position', `${position}vh`);
+}
+
+function updatePreview(url) {
+    if (!url) return;
+    previewImg.src = url;
+    uploadContent.style.display = 'none';
+    wallpaperPreview.style.display = 'block';
+    wallpaperControls.style.display = 'block';
+}
+
+async function handleFile(file) {
     if (file) {
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit
-            alert("Image too large (max 2MB)");
+        // Limit to 20MB
+        if (file.size > 20 * 1024 * 1024) {
+            alert("Image too large (max 20MB)");
             return;
         }
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const base64 = event.target.result;
-            localStorage.setItem("wallpaper", base64);
-            document.body.style.backgroundImage = `url(${base64})`;
-        };
-        reader.readAsDataURL(file);
+
+        try {
+            await saveWallpaperToDB(file);
+            // Clear legacy localStorage wallpaper if exists
+            localStorage.removeItem("wallpaper");
+
+            const objectUrl = URL.createObjectURL(file);
+            setWallpaper(objectUrl);
+            updatePreview(objectUrl);
+            applyWallpaperEffects();
+        } catch (err) {
+            console.error("Failed to save wallpaper:", err);
+            alert("Failed to save wallpaper.");
+        }
     }
 }
 
@@ -240,10 +394,71 @@ dropZone.addEventListener("drop", (e) => {
     handleFile(e.dataTransfer.files[0]);
 });
 
-resetWallpaper.addEventListener("click", () => {
-    localStorage.removeItem("wallpaper");
-    document.body.style.backgroundImage = "";
+// Blur slider
+blurSlider.addEventListener("input", (e) => {
+    const value = parseInt(e.target.value);
+    wallpaperSettings.blur = value;
+    blurValue.textContent = value;
+    localStorage.setItem("wallpaperSettings", JSON.stringify(wallpaperSettings));
+    applyWallpaperEffects();
 });
+
+// Vignette slider
+vignetteSlider.addEventListener("input", (e) => {
+    const value = parseInt(e.target.value);
+    wallpaperSettings.vignette = value;
+    vignetteValue.textContent = value;
+    localStorage.setItem("wallpaperSettings", JSON.stringify(wallpaperSettings));
+    applyWallpaperEffects();
+});
+
+// Search box width slider
+searchWidthSlider.addEventListener("input", (e) => {
+    const value = parseInt(e.target.value);
+    searchBoxSettings.width = value;
+    searchWidthValue.textContent = `${value}px`;
+    localStorage.setItem("searchBoxSettings", JSON.stringify(searchBoxSettings));
+    applySearchBoxSettings();
+});
+
+// Search box position slider
+searchPositionSlider.addEventListener("input", (e) => {
+    const value = parseInt(e.target.value);
+    searchBoxSettings.position = value;
+    searchPositionValue.textContent = `${value}%`;
+    localStorage.setItem("searchBoxSettings", JSON.stringify(searchBoxSettings));
+    applySearchBoxSettings();
+});
+
+resetWallpaper.addEventListener("click", async () => {
+    await deleteWallpaperFromDB();
+    localStorage.removeItem("wallpaper"); // Clear legacy
+    localStorage.removeItem("wallpaperSettings");
+
+    wallpaperSettings = { blur: 0, vignette: 0 };
+    setWallpaper('none');
+    document.documentElement.style.setProperty('--wallpaper-blur', '0px');
+    document.documentElement.style.setProperty('--wallpaper-vignette', 'transparent');
+
+    uploadContent.style.display = 'flex';
+    wallpaperPreview.style.display = 'none';
+    wallpaperControls.style.display = 'none';
+    blurSlider.value = 0;
+    vignetteSlider.value = 0;
+    blurValue.textContent = 0;
+    vignetteValue.textContent = 0;
+});
+
+// Reset Shortcuts
+const resetShortcutsBtn = document.getElementById("resetShortcutsBtn");
+if (resetShortcutsBtn) {
+    resetShortcutsBtn.addEventListener("click", () => {
+        if (confirm("Reset shortcuts to default?")) {
+            shortcuts = JSON.parse(JSON.stringify(defaultShortcuts)); // Deep copy
+            saveShortcuts();
+        }
+    });
+}
 
 // Add Engine
 addEngineBtn.addEventListener("click", () => {
@@ -324,7 +539,14 @@ const fallbackMessages = {
         "customEngines": "自定义搜索引擎",
         "shortcuts": "快捷方式",
         "add": "添加",
-        "dragDropText": "拖拽图片到此处或点击上传"
+        "dragDropText": "拖拽图片到此处或点击上传",
+        "wallpaperSettings": "壁纸设置",
+        "blurAmount": "模糊程度",
+        "vignetteAmount": "暗角程度",
+        "resetShortcuts": "重置快捷方式",
+        "searchBoxSettings": "搜索框设置",
+        "searchBoxWidth": "宽度",
+        "searchBoxPosition": "垂直位置"
     },
     "en": {
         "appTitle": "GenresFox-NEWTAB",
@@ -338,7 +560,14 @@ const fallbackMessages = {
         "customEngines": "Custom Search Engines",
         "shortcuts": "Shortcuts",
         "add": "Add",
-        "dragDropText": "Drag & Drop image here or click to upload"
+        "dragDropText": "Drag & Drop image here or click to upload",
+        "wallpaperSettings": "Wallpaper Settings",
+        "blurAmount": "Blur Amount",
+        "vignetteAmount": "Vignette Amount",
+        "resetShortcuts": "Reset Shortcuts",
+        "searchBoxSettings": "Search Box Settings",
+        "searchBoxWidth": "Width",
+        "searchBoxPosition": "Vertical Position"
     }
 };
 
@@ -369,15 +598,64 @@ function localize() {
 }
 
 // Init
-const savedWallpaper = localStorage.getItem("wallpaper");
-if (savedWallpaper) {
-    document.body.style.backgroundImage = `url(${savedWallpaper})`;
+async function init() {
+    // Try to load from IndexedDB first
+    try {
+        const dbData = await getWallpaperFromDB();
+        if (dbData) {
+            // Check if it's a Blob (new format) or Base64 string (old format)
+            let objectUrl;
+            if (dbData instanceof Blob) {
+                objectUrl = URL.createObjectURL(dbData);
+            } else {
+                // It's a base64 string from previous migration, use it directly
+                objectUrl = dbData;
+            }
+            setWallpaper(objectUrl);
+            updatePreview(objectUrl);
+        } else {
+            // Fallback to localStorage (legacy support)
+            const savedWallpaper = localStorage.getItem("wallpaper");
+            if (savedWallpaper) {
+                setWallpaper(savedWallpaper);
+                updatePreview(savedWallpaper);
+                // We don't migrate automatically here to avoid blocking, 
+                // user will migrate when they upload a new one.
+            }
+        }
+    } catch (e) {
+        console.error("Error initializing wallpaper:", e);
+    }
+
+    // Load saved wallpaper settings
+    if (wallpaperSettings.blur > 0 || wallpaperSettings.vignette > 0) {
+        blurSlider.value = wallpaperSettings.blur;
+        vignetteSlider.value = wallpaperSettings.vignette;
+        blurValue.textContent = wallpaperSettings.blur;
+        vignetteValue.textContent = wallpaperSettings.vignette;
+        applyWallpaperEffects();
+    }
+
+    // Load saved search box settings
+    searchWidthSlider.value = searchBoxSettings.width;
+    searchPositionSlider.value = searchBoxSettings.position;
+    searchWidthValue.textContent = `${searchBoxSettings.width}px`;
+    searchPositionValue.textContent = `${searchBoxSettings.position}%`;
+    applySearchBoxSettings();
+
+    // Ensure shortcuts exist (Double check)
+    if (!shortcuts || shortcuts.length === 0) {
+        shortcuts = JSON.parse(JSON.stringify(defaultShortcuts));
+        saveShortcuts();
+    }
+
+    localize();
+    updateUI();
+    renderEnginesList();
+    renderShortcutsList();
+    renderShortcutsGrid();
+    searchInput.addEventListener("keydown", handleSearch);
+    searchInput.focus();
 }
 
-localize();
-updateUI();
-renderEnginesList();
-renderShortcutsList();
-renderShortcutsGrid();
-searchInput.addEventListener("keydown", handleSearch);
-searchInput.focus();
+init();
