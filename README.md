@@ -34,7 +34,7 @@
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/GenresFox-NEWTAB.git
+   git clone https://github.com/zayokami/GenresFox-NEWTAB.git
    ```
 
 2. Open Chrome/Edge and navigate to `chrome://extensions/`
@@ -155,7 +155,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 1. 克隆此仓库：
    ```bash
-   git clone https://github.com/yourusername/GenresFox-NEWTAB.git
+   git clone https://github.com/zayokami/GenresFox-NEWTAB.git
    ```
 
 2. 打开 Chrome/Edge 浏览器，访问 `chrome://extensions/`
