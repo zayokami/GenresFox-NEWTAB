@@ -681,6 +681,7 @@ const AccessibilityManager = (function () {
     // Expose public API
     return {
         init,
+        syncUI: _syncUI,  // Exposed for calling after CustomSelect.init()
         getSettings,
         setTheme,
         setFontSize,

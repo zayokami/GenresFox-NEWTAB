@@ -518,8 +518,8 @@ function renderShortcutsGrid() {
         const img = document.createElement("img");
         img.alt = shortcut.name;
         
-        // Use cached icon with unique key based on URL
-        const cacheKey = `shortcut_${index}_${shortcut.url}`;
+        // Use cached icon with stable key based on URL (not index, which changes on delete)
+        const cacheKey = `shortcut_${shortcut.url}`;
         img.dataset.cacheKey = cacheKey; // For updating after cache completes
         const iconSrc = getIconSrc(cacheKey, shortcut.icon);
         img.src = iconSrc;
@@ -693,6 +693,7 @@ async function init() {
     }
 
     // Initialize Accessibility Manager (applies theme/font settings early)
+    // Note: Don't sync UI yet, custom selects aren't created
     if (typeof AccessibilityManager !== 'undefined') {
         try {
             AccessibilityManager.init();
@@ -724,6 +725,11 @@ async function init() {
     // Initialize custom selects after i18n is applied
     if (typeof CustomSelect !== 'undefined') {
         CustomSelect.init('#tab-accessibility select');
+    }
+    
+    // Now sync accessibility UI after custom selects exist
+    if (typeof AccessibilityManager !== 'undefined' && AccessibilityManager.syncUI) {
+        AccessibilityManager.syncUI();
     }
     
     updateUI();
@@ -799,8 +805,15 @@ function initRippleEffects() {
     });
 }
 
-// Initialize ripple effects after DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize ripple effects
+// Note: Script loads at end of body, so DOM is already ready
+(function initRipples() {
+    // Check if DOM is ready (it should be since script is at end of body)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRipples);
+        return;
+    }
+    
     initRippleEffects();
     
     // Re-init ripples when dynamic content is added
@@ -812,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
         childList: true,
         subtree: true
     });
-});
+})();
 
 // Expose for global use
 window.initRippleEffects = initRippleEffects;
