@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Chrome](https://img.shields.io/badge/chrome-manifest%20v3-orange.svg)
 
@@ -23,7 +23,10 @@
 - **⚙️ Custom Search Engines**: Add your own search engines with custom URLs
 - **🔖 Quick Shortcuts**: Create shortcuts to your favorite websites with auto-fetched favicons
 - **🖼️ Custom Wallpapers**: Upload your own background images with drag-and-drop support
-- **🌍 Internationalization**: Auto-detects browser language (English & Simplified Chinese)
+- **🌅 Bing Daily Wallpaper**: Beautiful daily wallpapers from Bing as default background
+- **🌍 Multi-language**: English, Simplified Chinese, Traditional Chinese, Japanese
+- **♿ Accessibility**: High contrast themes, font controls, animation settings, keyboard shortcuts
+- **⌨️ Keyboard Shortcuts**: Quick engine switching (Alt+↑↓), focus search (/), open settings (Alt+,)
 - **💾 Icon Caching**: Automatically caches search engine icons for faster loading
 - **🎯 Clean & Minimal**: Distraction-free interface focused on what matters
 
@@ -83,14 +86,19 @@ GenresFox-NEWTAB/
 ├── src/
 │   ├── _locales/           # Internationalization files
 │   │   ├── en/
-│   │   │   └── messages.json
-│   │   └── zh_CN/
-│   │       └── messages.json
+│   │   ├── ja/
+│   │   ├── zh_CN/
+│   │   └── zh_TW/
 │   ├── icon.png            # Extension icon
 │   ├── manifest.json       # Extension manifest
-│   ├── newtab.html        # Main HTML file
-│   ├── script.js          # JavaScript logic
-│   └── styles.css         # Styles
+│   ├── newtab.html         # Main HTML file
+│   ├── script.js           # Main JavaScript logic
+│   ├── i18n.js             # Internationalization module
+│   ├── wallpaper.js        # Wallpaper management module
+│   ├── accessibility.js    # Accessibility features module
+│   ├── styles.css          # Main styles
+│   └── accessibility.css   # Accessibility styles
+├── CHANGELOG.md
 └── README.md
 ```
 
@@ -105,7 +113,8 @@ GenresFox-NEWTAB/
 1. Create a new folder in `src/_locales/` with the language code (e.g., `fr` for French)
 2. Copy `messages.json` from `en` folder
 3. Translate all message values
-4. Add the language to `fallbackMessages` in `script.js`
+4. Add the language to `_fallbackMessages` in `src/i18n.js`
+5. Update `_supportedLanguages` array and `_detectLanguage()` function
 
 ### 🤝 Contributing
 
@@ -132,6 +141,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Inspired by modern web design trends
 - Icons from Google Material Design
 - Favicon service by Google
+- Daily wallpapers by Bing
 
 ---
 
@@ -144,7 +154,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **⚙️ 自定义搜索引擎**: 添加您自己的搜索引擎和自定义 URL
 - **🔖 快捷方式**: 创建常用网站的快捷方式，自动获取网站图标
 - **🖼️ 自定义壁纸**: 上传您自己的背景图片，支持拖放上传
-- **🌍 国际化**: 自动检测浏览器语言（支持英文和简体中文）
+- **🌅 必应每日壁纸**: 默认显示来自必应的精美每日壁纸
+- **🌍 多语言支持**: 简体中文、繁体中文、日语、英语
+- **♿ 无障碍功能**: 高对比度主题、字体控制、动画设置、键盘快捷键
+- **⌨️ 键盘快捷键**: 快速切换搜索引擎 (Alt+↑↓)、聚焦搜索框 (/)、打开设置 (Alt+,)
 - **💾 图标缓存**: 自动缓存搜索引擎图标，加快加载速度
 - **🎯 简洁极简**: 无干扰界面，专注于重要内容
 
@@ -204,14 +217,19 @@ GenresFox-NEWTAB/
 ├── src/
 │   ├── _locales/           # 国际化文件
 │   │   ├── en/
-│   │   │   └── messages.json
-│   │   └── zh_CN/
-│   │       └── messages.json
+│   │   ├── ja/
+│   │   ├── zh_CN/
+│   │   └── zh_TW/
 │   ├── icon.png            # 扩展图标
 │   ├── manifest.json       # 扩展清单
-│   ├── newtab.html        # 主 HTML 文件
-│   ├── script.js          # JavaScript 逻辑
-│   └── styles.css         # 样式文件
+│   ├── newtab.html         # 主 HTML 文件
+│   ├── script.js           # 主 JavaScript 逻辑
+│   ├── i18n.js             # 国际化模块
+│   ├── wallpaper.js        # 壁纸管理模块
+│   ├── accessibility.js    # 无障碍功能模块
+│   ├── styles.css          # 主样式文件
+│   └── accessibility.css   # 无障碍样式文件
+├── CHANGELOG.md
 └── README.md
 ```
 
@@ -222,11 +240,12 @@ GenresFox-NEWTAB/
 - **LocalStorage**: 用于持久化设置和缓存
 - **Chrome 扩展 API**: 用于国际化和浏览器集成
 
-#### 多语言支持
+#### 添加新语言
 1. 在 `src/_locales/` 中创建新文件夹，使用语言代码命名（如 `fr` 表示法语）
 2. 从 `en` 文件夹复制 `messages.json`
 3. 翻译所有消息值
-4. 在 `script.js` 的 `fallbackMessages` 中添加该语言
+4. 在 `src/i18n.js` 的 `_fallbackMessages` 中添加该语言
+5. 更新 `_supportedLanguages` 数组和 `_detectLanguage()` 函数
 
 ### 🤝 贡献
 
@@ -253,6 +272,7 @@ GenresFox-NEWTAB/
 - 灵感来自现代网页设计趋势
 - 图标来自 Google Material Design
 - Favicon 服务由 Google 提供
+- 每日壁纸由 Bing 提供
 
 ---
 

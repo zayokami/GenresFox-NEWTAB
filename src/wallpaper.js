@@ -329,8 +329,20 @@ const WallpaperManager = (function () {
             // Try to load a known working Bing wallpaper URL
             const testUrl = `https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=en-US`;
             
-            // Test if URL is accessible
-            const testResponse = await fetch(testUrl, { method: 'HEAD', mode: 'no-cors' });
+            // Validate URL accessibility by attempting to load as image
+            const isAccessible = await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                // Set timeout to avoid hanging
+                setTimeout(() => resolve(false), 5000);
+                img.src = testUrl;
+            });
+            
+            if (!isAccessible) {
+                console.warn('Bing wallpaper URL not accessible');
+                return null;
+            }
             
             return {
                 url: testUrl,
@@ -495,29 +507,19 @@ const WallpaperManager = (function () {
         const bingLoaded = await _applyBingWallpaper();
         
         if (!bingLoaded) {
-            // No Bing wallpaper available, show upload UI
             _setWallpaper('none');
-            
-            if (_elements.uploadContent) {
-                _elements.uploadContent.style.display = 'flex';
-            }
-            if (_elements.wallpaperPreview) {
-                _elements.wallpaperPreview.style.display = 'none';
-            }
-            if (_elements.wallpaperControls) {
-                _elements.wallpaperControls.style.display = 'none';
-            }
-        } else {
-            // Show wallpaper controls for Bing wallpaper
-            if (_elements.uploadContent) {
-                _elements.uploadContent.style.display = 'none';
-            }
-            if (_elements.wallpaperPreview) {
-                _elements.wallpaperPreview.style.display = 'none'; // No preview for Bing
-            }
-            if (_elements.wallpaperControls) {
-                _elements.wallpaperControls.style.display = 'block';
-            }
+        }
+        
+        // Show upload content and hide preview after reset
+        if (_elements.uploadContent) {
+            _elements.uploadContent.style.display = 'flex';
+        }
+        if (_elements.wallpaperPreview) {
+            _elements.wallpaperPreview.style.display = 'none';
+        }
+        // Always show wallpaper controls (Bing wallpaper can also be adjusted)
+        if (_elements.wallpaperControls) {
+            _elements.wallpaperControls.style.display = 'block';
         }
     }
 
@@ -812,6 +814,11 @@ const WallpaperManager = (function () {
             _elements.searchPositionValue.textContent = `${position}%`;
         }
 
+        // Always show wallpaper controls (works with both custom and Bing wallpaper)
+        if (_elements.wallpaperControls) {
+            _elements.wallpaperControls.style.display = 'block';
+        }
+
         // Update search box preview
         _updateSearchPreview();
     }
@@ -978,4 +985,3 @@ const WallpaperManager = (function () {
 
 // Export for global use
 window.WallpaperManager = WallpaperManager;
-

@@ -142,5 +142,20 @@
     },
     "a11yReset": {
         "message": "Reset to Defaults"
+    },
+    "aboutDescription": {
+        "message": "A fully open-source, extremely clean, and highly customizable new tab page extension."
+    },
+    "aboutOpenSource": {
+        "message": "GenresFox-NEWTAB is an open-source project. You can find the source code on GitHub!"
+    },
+    "viewOnGitHub": {
+        "message": "View on GitHub"
+    },
+    "creditsTitle": {
+        "message": "Credits"
+    },
+    "creditsBingWallpaper": {
+        "message": "Default wallpaper powered by Bing Daily Wallpaper."
     }
 }

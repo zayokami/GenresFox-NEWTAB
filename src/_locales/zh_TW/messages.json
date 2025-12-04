@@ -1,45 +1,45 @@
 {
     "searchPlaceholder": {
-        "message": "搜索..."
+        "message": "搜尋..."
     },
     "appTitle": {
         "message": "GenresFox-NEWTAB"
     },
     "settingsTitle": {
-        "message": "设置"
+        "message": "設定"
     },
     "tabWallpaper": {
-        "message": "壁纸"
+        "message": "桌布"
     },
     "tabSearch": {
-        "message": "搜索与快捷方式"
+        "message": "搜尋與捷徑"
     },
     "tabAccessibility": {
-        "message": "无障碍"
+        "message": "無障礙"
     },
     "tabAbout": {
-        "message": "关于"
+        "message": "關於"
     },
     "uploadWallpaper": {
-        "message": "上传壁纸"
+        "message": "上傳桌布"
     },
     "resetWallpaper": {
-        "message": "恢复默认"
+        "message": "恢復預設"
     },
     "customEngines": {
-        "message": "自定义搜索引擎"
+        "message": "自訂搜尋引擎"
     },
     "shortcuts": {
-        "message": "快捷方式"
+        "message": "捷徑"
     },
     "add": {
-        "message": "添加"
+        "message": "新增"
     },
     "dragDropText": {
-        "message": "拖拽图片到此处或点击上传"
+        "message": "拖曳圖片到此處或點擊上傳"
     },
     "wallpaperSettings": {
-        "message": "壁纸设置"
+        "message": "桌布設定"
     },
     "blurAmount": {
         "message": "模糊程度"
@@ -48,114 +48,115 @@
         "message": "暗角程度"
     },
     "resetShortcuts": {
-        "message": "重置快捷方式"
+        "message": "重設捷徑"
     },
     "searchBoxSettings": {
-        "message": "搜索框设置"
+        "message": "搜尋框設定"
     },
     "searchBoxWidth": {
-        "message": "宽度"
+        "message": "寬度"
     },
     "searchBoxPosition": {
         "message": "垂直位置"
     },
     "livePreview": {
-        "message": "实时预览"
+        "message": "即時預覽"
     },
     "a11yDisplay": {
-        "message": "显示"
+        "message": "顯示"
     },
     "a11yTheme": {
-        "message": "主题"
+        "message": "主題"
     },
     "a11yThemeStandard": {
-        "message": "标准"
+        "message": "標準"
     },
     "a11yThemeHCDark": {
-        "message": "高对比度 (深色)"
+        "message": "高對比 (深色)"
     },
     "a11yThemeHCLight": {
-        "message": "高对比度 (浅色)"
+        "message": "高對比 (淺色)"
     },
     "a11yThemeYellowBlack": {
-        "message": "黄底黑字"
+        "message": "黃底黑字"
     },
     "a11yFontSize": {
-        "message": "字体大小"
+        "message": "字型大小"
     },
     "a11yFontFamily": {
-        "message": "字体"
+        "message": "字型"
     },
     "a11yFontDefault": {
-        "message": "默认"
+        "message": "預設"
     },
     "a11yFontSans": {
-        "message": "无衬线"
+        "message": "無襯線"
     },
     "a11yFontSerif": {
-        "message": "衬线"
+        "message": "襯線"
     },
     "a11yFontDyslexic": {
-        "message": "阅读障碍友好"
+        "message": "閱讀障礙友善"
     },
     "a11yLineSpacing": {
-        "message": "行间距"
+        "message": "行距"
     },
     "a11ySpacingNormal": {
         "message": "正常"
     },
     "a11ySpacingRelaxed": {
-        "message": "宽松"
+        "message": "寬鬆"
     },
     "a11ySpacingVeryRelaxed": {
-        "message": "很宽松"
+        "message": "非常寬鬆"
     },
     "a11yMotion": {
-        "message": "动画"
+        "message": "動畫"
     },
     "a11yAnimations": {
-        "message": "动画效果"
+        "message": "動畫效果"
     },
     "a11yMotionFull": {
         "message": "完整"
     },
     "a11yMotionReduced": {
-        "message": "减少"
+        "message": "減少"
     },
     "a11yMotionNone": {
-        "message": "无"
+        "message": "無"
     },
     "a11yFocus": {
-        "message": "焦点"
+        "message": "焦點"
     },
     "a11yFocusIndicator": {
-        "message": "焦点指示器"
+        "message": "焦點指示器"
     },
     "a11yFocusStandard": {
-        "message": "标准"
+        "message": "標準"
     },
     "a11yFocusEnhanced": {
-        "message": "增强"
+        "message": "增強"
     },
     "a11yFocusLarge": {
         "message": "大型"
     },
     "a11yReset": {
-        "message": "恢复默认设置"
+        "message": "恢復預設設定"
     },
     "aboutDescription": {
-        "message": "一个完全开源、极简、高度可定制的新标签页扩展。"
+        "message": "一個完全開源、極簡、高度可自訂的新分頁擴充功能。"
     },
     "aboutOpenSource": {
-        "message": "GenresFox-NEWTAB 是一个开源项目，你可以在 GitHub 上找到源代码！"
+        "message": "GenresFox-NEWTAB 是一個開源專案，你可以在 GitHub 上找到原始碼！"
     },
     "viewOnGitHub": {
         "message": "在 GitHub 上查看"
     },
     "creditsTitle": {
-        "message": "致谢"
+        "message": "致謝"
     },
     "creditsBingWallpaper": {
-        "message": "默认壁纸由 Bing 每日壁纸提供。"
+        "message": "預設桌布由 Bing 每日桌布提供。"
     }
 }
+

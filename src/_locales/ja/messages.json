@@ -1,0 +1,162 @@
+{
+    "searchPlaceholder": {
+        "message": "検索..."
+    },
+    "appTitle": {
+        "message": "GenresFox-NEWTAB"
+    },
+    "settingsTitle": {
+        "message": "設定"
+    },
+    "tabWallpaper": {
+        "message": "壁紙"
+    },
+    "tabSearch": {
+        "message": "検索とショートカット"
+    },
+    "tabAccessibility": {
+        "message": "アクセシビリティ"
+    },
+    "tabAbout": {
+        "message": "について"
+    },
+    "uploadWallpaper": {
+        "message": "壁紙をアップロード"
+    },
+    "resetWallpaper": {
+        "message": "デフォルトに戻す"
+    },
+    "customEngines": {
+        "message": "カスタム検索エンジン"
+    },
+    "shortcuts": {
+        "message": "ショートカット"
+    },
+    "add": {
+        "message": "追加"
+    },
+    "dragDropText": {
+        "message": "画像をドラッグ＆ドロップまたはクリックしてアップロード"
+    },
+    "wallpaperSettings": {
+        "message": "壁紙設定"
+    },
+    "blurAmount": {
+        "message": "ぼかし量"
+    },
+    "vignetteAmount": {
+        "message": "ビネット量"
+    },
+    "resetShortcuts": {
+        "message": "ショートカットをリセット"
+    },
+    "searchBoxSettings": {
+        "message": "検索ボックス設定"
+    },
+    "searchBoxWidth": {
+        "message": "幅"
+    },
+    "searchBoxPosition": {
+        "message": "垂直位置"
+    },
+    "livePreview": {
+        "message": "ライブプレビュー"
+    },
+    "a11yDisplay": {
+        "message": "表示"
+    },
+    "a11yTheme": {
+        "message": "テーマ"
+    },
+    "a11yThemeStandard": {
+        "message": "標準"
+    },
+    "a11yThemeHCDark": {
+        "message": "ハイコントラスト (ダーク)"
+    },
+    "a11yThemeHCLight": {
+        "message": "ハイコントラスト (ライト)"
+    },
+    "a11yThemeYellowBlack": {
+        "message": "黄色に黒"
+    },
+    "a11yFontSize": {
+        "message": "フォントサイズ"
+    },
+    "a11yFontFamily": {
+        "message": "フォント"
+    },
+    "a11yFontDefault": {
+        "message": "デフォルト"
+    },
+    "a11yFontSans": {
+        "message": "サンセリフ"
+    },
+    "a11yFontSerif": {
+        "message": "セリフ"
+    },
+    "a11yFontDyslexic": {
+        "message": "ディスレクシア対応"
+    },
+    "a11yLineSpacing": {
+        "message": "行間"
+    },
+    "a11ySpacingNormal": {
+        "message": "標準"
+    },
+    "a11ySpacingRelaxed": {
+        "message": "広め"
+    },
+    "a11ySpacingVeryRelaxed": {
+        "message": "とても広め"
+    },
+    "a11yMotion": {
+        "message": "モーション"
+    },
+    "a11yAnimations": {
+        "message": "アニメーション"
+    },
+    "a11yMotionFull": {
+        "message": "フル"
+    },
+    "a11yMotionReduced": {
+        "message": "軽減"
+    },
+    "a11yMotionNone": {
+        "message": "なし"
+    },
+    "a11yFocus": {
+        "message": "フォーカス"
+    },
+    "a11yFocusIndicator": {
+        "message": "フォーカスインジケーター"
+    },
+    "a11yFocusStandard": {
+        "message": "標準"
+    },
+    "a11yFocusEnhanced": {
+        "message": "強調"
+    },
+    "a11yFocusLarge": {
+        "message": "大"
+    },
+    "a11yReset": {
+        "message": "デフォルトに戻す"
+    },
+    "aboutDescription": {
+        "message": "完全オープンソース、シンプル、高度にカスタマイズ可能な新しいタブページ拡張機能。"
+    },
+    "aboutOpenSource": {
+        "message": "GenresFox-NEWTAB はオープンソースプロジェクトです。GitHub でソースコードを見つけることができます！"
+    },
+    "viewOnGitHub": {
+        "message": "GitHub で見る"
+    },
+    "creditsTitle": {
+        "message": "クレジット"
+    },
+    "creditsBingWallpaper": {
+        "message": "デフォルト壁紙は Bing 日替わり壁紙を使用しています。"
+    }
+}
+

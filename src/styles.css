@@ -807,6 +807,25 @@ input[type="text"]:focus {
 .github-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
+}
+
+/* Credits section in About tab */
+.about-credits {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-credits h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 8px;
+}
+
+.about-credits p {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
     transform: translateY(-2px);
 }
 

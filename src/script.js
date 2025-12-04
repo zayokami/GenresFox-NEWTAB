@@ -13,12 +13,6 @@ const CustomSelect = (function() {
     function init(selector = '.modal select') {
         const selects = document.querySelectorAll(selector);
         selects.forEach(select => {
-            // For language selector, set the correct initial value before converting
-            if (select.id === 'languageSelect') {
-                const savedLang = localStorage.getItem('preferredLanguage') || 
-                                  (navigator.language.startsWith("zh") ? "zh" : "en");
-                select.value = savedLang;
-            }
             _createCustomSelect(select);
         });
 
@@ -56,7 +50,6 @@ const CustomSelect = (function() {
         const optionsContainer = document.createElement('div');
         optionsContainer.className = 'custom-select-options';
         optionsContainer.setAttribute('role', 'listbox');
-        optionsContainer.setAttribute('data-for', nativeSelect.id);
 
         // Build options from native select
         Array.from(nativeSelect.options).forEach((option) => {
@@ -136,14 +129,6 @@ const CustomSelect = (function() {
         wrapper.classList.add('open');
         trigger.setAttribute('aria-expanded', 'true');
 
-        // Move options to body and position with fixed
-        document.body.appendChild(options);
-        const rect = trigger.getBoundingClientRect();
-        options.style.position = 'fixed';
-        options.style.top = `${rect.bottom + 4}px`;
-        options.style.left = `${rect.left}px`;
-        options.style.width = `${rect.width}px`;
-
         // Focus selected option
         const selectedOption = options.querySelector('.custom-select-option.selected') ||
                                options.querySelector('.custom-select-option');
@@ -157,21 +142,10 @@ const CustomSelect = (function() {
      */
     function _closeDropdown(wrapper) {
         const trigger = wrapper.querySelector('.custom-select-trigger');
-        const options = document.querySelector(`.custom-select-options[data-for="${wrapper.getAttribute('data-select-id')}"]`) ||
-                        wrapper.querySelector('.custom-select-options');
         
         wrapper.classList.remove('open');
         if (trigger) {
             trigger.setAttribute('aria-expanded', 'false');
-        }
-        
-        // Move options back to wrapper
-        if (options && options.parentNode === document.body) {
-            wrapper.appendChild(options);
-            options.style.position = '';
-            options.style.top = '';
-            options.style.left = '';
-            options.style.width = '';
         }
     }
 
@@ -198,15 +172,11 @@ const CustomSelect = (function() {
         const trigger = wrapper.querySelector('.custom-select-trigger');
         trigger.textContent = text;
 
-        // Find options container (might be in body or wrapper)
-        const selectId = wrapper.getAttribute('data-select-id');
-        const optionsContainer = document.querySelector(`.custom-select-options[data-for="${selectId}"]`);
-        if (optionsContainer) {
-            optionsContainer.querySelectorAll('.custom-select-option').forEach(opt => {
-                opt.classList.remove('selected');
-                opt.setAttribute('aria-selected', 'false');
-            });
-        }
+        // Update selected state
+        wrapper.querySelectorAll('.custom-select-option').forEach(opt => {
+            opt.classList.remove('selected');
+            opt.setAttribute('aria-selected', 'false');
+        });
         option.classList.add('selected');
         option.setAttribute('aria-selected', 'true');
 
@@ -233,12 +203,9 @@ const CustomSelect = (function() {
         const openDropdown = document.querySelector('.custom-select.open');
         if (!openDropdown) return;
 
-        // Find options container (might be in body)
-        const selectId = openDropdown.getAttribute('data-select-id');
-        const optionsContainer = document.querySelector(`.custom-select-options[data-for="${selectId}"]`);
-        if (!optionsContainer) return;
-
-        const options = Array.from(optionsContainer.querySelectorAll('.custom-select-option'));
+        const options = Array.from(openDropdown.querySelectorAll('.custom-select-option'));
+        if (options.length === 0) return;
+        
         const currentIndex = options.findIndex(opt => opt === document.activeElement);
 
         switch (e.key) {
@@ -341,10 +308,24 @@ const defaultShortcuts = [
     { name: "Gmail", url: "https://mail.google.com", icon: "https://mail.google.com/favicon.ico" }
 ];
 
-// State
-let engines = JSON.parse(localStorage.getItem("engines")) || defaultEngines;
+// State - with safe JSON parsing to handle corrupted data
+let engines;
+try {
+    engines = JSON.parse(localStorage.getItem("engines")) || defaultEngines;
+} catch (e) {
+    console.warn('Failed to parse engines from localStorage, using defaults');
+    engines = defaultEngines;
+}
+
 let currentEngine = localStorage.getItem("preferredEngine") || "google";
-let shortcuts = JSON.parse(localStorage.getItem("shortcuts"));
+
+let shortcuts;
+try {
+    shortcuts = JSON.parse(localStorage.getItem("shortcuts"));
+} catch (e) {
+    console.warn('Failed to parse shortcuts from localStorage, using defaults');
+    shortcuts = null;
+}
 
 if (!shortcuts || shortcuts.length === 0) {
     shortcuts = defaultShortcuts;
@@ -402,7 +383,13 @@ function updateUI() {
     // Update selected engine icon
     const engine = engines[currentEngine] || engines.google;
     const src = getIconSrc(currentEngine, engine.icon);
-    selectedEngineIcon.innerHTML = `<img src="${src}" alt="${engine.name}" width="20" height="20">`;
+    selectedEngineIcon.textContent = '';
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = engine.name;
+    img.width = 20;
+    img.height = 20;
+    selectedEngineIcon.appendChild(img);
 
     renderEngineDropdown();
 }
@@ -414,10 +401,17 @@ function renderEngineDropdown() {
         const div = document.createElement("div");
         div.className = "engine-option";
         div.dataset.engine = key;
-        div.innerHTML = `
-            <img src="${getIconSrc(key, engine.icon)}" width="20" height="20">
-            <span>${engine.name}</span>
-        `;
+        
+        const img = document.createElement('img');
+        img.src = getIconSrc(key, engine.icon);
+        img.width = 20;
+        img.height = 20;
+        
+        const span = document.createElement('span');
+        span.textContent = engine.name;
+        
+        div.appendChild(img);
+        div.appendChild(span);
         div.addEventListener("click", () => setEngine(key));
         engineDropdown.appendChild(div);
     });
@@ -431,13 +425,18 @@ function renderEnginesList() {
         div.className = "list-item";
 
         const spanInfo = document.createElement("span");
-        spanInfo.innerHTML = `<img src="${getIconSrc(key, engine.icon)}" width="20" height="20"> ${engine.name}`;
+        const img = document.createElement('img');
+        img.src = getIconSrc(key, engine.icon);
+        img.width = 20;
+        img.height = 20;
+        spanInfo.appendChild(img);
+        spanInfo.appendChild(document.createTextNode(' ' + engine.name));
         div.appendChild(spanInfo);
 
         if (!defaultEngines[key]) {
             const deleteBtn = document.createElement("span");
             deleteBtn.className = "delete-btn";
-            deleteBtn.innerHTML = "&times;";
+            deleteBtn.textContent = '\u00D7'; // multiplication sign
             deleteBtn.addEventListener("click", () => deleteEngine(key));
             div.appendChild(deleteBtn);
         }
@@ -453,12 +452,17 @@ function renderShortcutsList() {
         div.className = "list-item";
 
         const spanInfo = document.createElement("span");
-        spanInfo.innerHTML = `<img src="${shortcut.icon}" width="20" height="20"> ${shortcut.name}`;
+        const img = document.createElement('img');
+        img.src = shortcut.icon;
+        img.width = 20;
+        img.height = 20;
+        spanInfo.appendChild(img);
+        spanInfo.appendChild(document.createTextNode(' ' + shortcut.name));
         div.appendChild(spanInfo);
 
         const deleteBtn = document.createElement("span");
         deleteBtn.className = "delete-btn";
-        deleteBtn.innerHTML = "&times;";
+        deleteBtn.textContent = '\u00D7'; // multiplication sign
         deleteBtn.addEventListener("click", () => deleteShortcut(index));
         div.appendChild(deleteBtn);
 
@@ -558,11 +562,23 @@ if (resetShortcutsBtn) {
     });
 }
 
+// Security: Check if URL uses dangerous protocol
+function isDangerousUrl(url) {
+    const dangerous = /^(javascript|data|vbscript|file):/i;
+    return dangerous.test(url.trim());
+}
+
 // Add Engine
 addEngineBtn.addEventListener("click", () => {
     const name = document.getElementById("newEngineName").value.trim();
     let url = document.getElementById("newEngineUrl").value.trim();
     if (name && url) {
+        // Security check
+        if (isDangerousUrl(url)) {
+            alert('Invalid URL protocol');
+            return;
+        }
+        
         const key = name.toLowerCase().replace(/\s+/g, '_');
         let icon = "icon.png";
         try {
@@ -583,6 +599,12 @@ addShortcutBtn.addEventListener("click", () => {
     const name = document.getElementById("newShortcutName").value.trim();
     let url = document.getElementById("newShortcutUrl").value.trim();
     if (name && url) {
+        // Security check
+        if (isDangerousUrl(url)) {
+            alert('Invalid URL protocol');
+            return;
+        }
+        
         if (!/^http(s)?:\/\//i.test(url)) url = "https://" + url;
         const icon = getFavicon(url);
         shortcuts.push({ name, url, icon });
@@ -623,213 +645,29 @@ document.addEventListener("click", (e) => {
     if (!engineSelector.contains(e.target)) engineSelector.classList.remove("active");
 });
 
-// Localization Fallback
-const fallbackMessages = {
-    "zh": {
-        "appTitle": "GenresFox-NEWTAB",
-        "searchPlaceholder": "搜索...",
-        "settingsTitle": "设置",
-        "tabWallpaper": "壁纸",
-        "tabSearch": "搜索与快捷方式",
-        "tabAccessibility": "无障碍",
-        "tabAbout": "关于",
-        "uploadWallpaper": "上传壁纸",
-        "resetWallpaper": "恢复默认",
-        "customEngines": "自定义搜索引擎",
-        "shortcuts": "快捷方式",
-        "add": "添加",
-        "dragDropText": "拖拽图片到此处或点击上传",
-        "wallpaperSettings": "壁纸设置",
-        "blurAmount": "模糊程度",
-        "vignetteAmount": "暗角程度",
-        "resetShortcuts": "重置快捷方式",
-        "searchBoxSettings": "搜索框设置",
-        "searchBoxWidth": "宽度",
-        "searchBoxPosition": "垂直位置",
-        "livePreview": "实时预览",
-        // Accessibility
-        "a11yDisplay": "显示",
-        "a11yTheme": "主题",
-        "a11yThemeStandard": "标准",
-        "a11yThemeHCDark": "高对比度 (深色)",
-        "a11yThemeHCLight": "高对比度 (浅色)",
-        "a11yThemeYellowBlack": "黄底黑字",
-        "a11yFontSize": "字体大小",
-        "a11yFontFamily": "字体",
-        "a11yFontDefault": "默认",
-        "a11yFontSans": "无衬线",
-        "a11yFontSerif": "衬线",
-        "a11yFontDyslexic": "阅读障碍友好",
-        "a11yLineSpacing": "行间距",
-        "a11ySpacingNormal": "正常",
-        "a11ySpacingRelaxed": "宽松",
-        "a11ySpacingVeryRelaxed": "很宽松",
-        "a11yMotion": "动画",
-        "a11yAnimations": "动画效果",
-        "a11yMotionFull": "完整",
-        "a11yMotionReduced": "减少",
-        "a11yMotionNone": "无",
-        "a11yFocus": "焦点",
-        "a11yFocusIndicator": "焦点指示器",
-        "a11yFocusStandard": "标准",
-        "a11yFocusEnhanced": "增强",
-        "a11yFocusLarge": "大型",
-        "a11yReset": "恢复默认设置",
-        "aboutDescription": "一个完全开源、极简、高度可定制的新标签页扩展。",
-        "aboutOpenSource": "GenresFox-NEWTAB 是一个开源项目，你可以在 GitHub 上找到源代码！",
-        "viewOnGitHub": "在 GitHub 上查看",
-        "languageLabel": "语言"
-    },
-    "en": {
-        "appTitle": "GenresFox-NEWTAB",
-        "searchPlaceholder": "Search...",
-        "settingsTitle": "Settings",
-        "tabWallpaper": "Wallpaper",
-        "tabSearch": "Search & Shortcuts",
-        "tabAccessibility": "Accessibility",
-        "tabAbout": "About",
-        "uploadWallpaper": "Upload Wallpaper",
-        "resetWallpaper": "Reset to Default",
-        "customEngines": "Custom Search Engines",
-        "shortcuts": "Shortcuts",
-        "add": "Add",
-        "dragDropText": "Drag & Drop image here or click to upload",
-        "wallpaperSettings": "Wallpaper Settings",
-        "blurAmount": "Blur Amount",
-        "vignetteAmount": "Vignette Amount",
-        "resetShortcuts": "Reset Shortcuts",
-        "searchBoxSettings": "Search Box Settings",
-        "searchBoxWidth": "Width",
-        "searchBoxPosition": "Vertical Position",
-        "livePreview": "Live Preview",
-        // Accessibility
-        "a11yDisplay": "Display",
-        "a11yTheme": "Theme",
-        "a11yThemeStandard": "Standard",
-        "a11yThemeHCDark": "High Contrast (Dark)",
-        "a11yThemeHCLight": "High Contrast (Light)",
-        "a11yThemeYellowBlack": "Yellow on Black",
-        "a11yFontSize": "Font Size",
-        "a11yFontFamily": "Font Family",
-        "a11yFontDefault": "Default",
-        "a11yFontSans": "Sans-serif",
-        "a11yFontSerif": "Serif",
-        "a11yFontDyslexic": "OpenDyslexic",
-        "a11yLineSpacing": "Line Spacing",
-        "a11ySpacingNormal": "Normal",
-        "a11ySpacingRelaxed": "Relaxed",
-        "a11ySpacingVeryRelaxed": "Very Relaxed",
-        "a11yMotion": "Motion",
-        "a11yAnimations": "Animations",
-        "a11yMotionFull": "Full",
-        "a11yMotionReduced": "Reduced",
-        "a11yMotionNone": "None",
-        "a11yFocus": "Focus",
-        "a11yFocusIndicator": "Focus Indicator",
-        "a11yFocusStandard": "Standard",
-        "a11yFocusEnhanced": "Enhanced",
-        "a11yFocusLarge": "Large",
-        "a11yReset": "Reset to Defaults",
-        "aboutDescription": "A fully open-source, extremely clean, and highly customizable new tab page extension.",
-        "aboutOpenSource": "GenresFox-NEWTAB is an open-source project. You can find the source code on GitHub!",
-        "viewOnGitHub": "View on GitHub",
-        "languageLabel": "Language"
-    }
-};
-
-// Language management
-let currentLanguage = localStorage.getItem('preferredLanguage') || 
-                      (navigator.language.startsWith("zh") ? "zh" : "en");
-
-function localize(lang = null) {
-    if (lang) {
-        currentLanguage = lang;
-        localStorage.setItem('preferredLanguage', lang);
-    }
-    
-    const fallback = fallbackMessages[currentLanguage] || fallbackMessages['en'];
-
-    if (typeof chrome !== 'undefined' && chrome.i18n && !localStorage.getItem('preferredLanguage')) {
-        // Use Chrome's i18n only if user hasn't manually set a language
-        document.querySelectorAll('[data-i18n]').forEach(elem => {
-            let msg = chrome.i18n.getMessage(elem.dataset.i18n);
-            if (!msg && fallback && fallback[elem.dataset.i18n]) {
-                msg = fallback[elem.dataset.i18n];
-            }
-            if (msg) elem.textContent = msg;
-        });
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(elem => {
-            let msg = chrome.i18n.getMessage(elem.dataset.i18nPlaceholder);
-            if (!msg && fallback && fallback[elem.dataset.i18nPlaceholder]) {
-                msg = fallback[elem.dataset.i18nPlaceholder];
-            }
-            if (msg) elem.placeholder = msg;
-        });
-        return;
-    }
-
-    // Use fallback messages with selected language
-    const messages = fallbackMessages[currentLanguage] || fallbackMessages['en'];
-    document.querySelectorAll('[data-i18n]').forEach(elem => {
-        const key = elem.dataset.i18n;
-        if (messages[key]) elem.textContent = messages[key];
-    });
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(elem => {
-        const key = elem.dataset.i18nPlaceholder;
-        if (messages[key]) elem.placeholder = messages[key];
-    });
-
-    // Update HTML lang attribute
-    document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : 'en';
-    
-    // Update language selector if exists
-    const langSelect = document.getElementById('languageSelect');
-    if (langSelect) {
-        langSelect.value = currentLanguage;
-        // Sync custom select if it exists
-        if (typeof CustomSelect !== 'undefined') {
-            CustomSelect.sync(langSelect);
-        }
-    }
-}
-
-function setLanguage(lang) {
-    localize(lang);
-    
-    // Re-initialize custom selects to update their text
-    if (typeof CustomSelect !== 'undefined') {
-        // Need to rebuild custom selects with new language
-        document.querySelectorAll('.custom-select').forEach(el => {
-            const nativeSelect = el.querySelector('select');
-            if (nativeSelect) {
-                const wrapper = nativeSelect.closest('.custom-select');
-                if (wrapper) {
-                    // Remove custom select wrapper, keep native select
-                    const parent = wrapper.parentNode;
-                    parent.insertBefore(nativeSelect, wrapper);
-                    wrapper.remove();
-                }
-            }
-        });
-        // Re-init custom selects
-        CustomSelect.init('#tab-accessibility select, #tab-about select');
-    }
-}
-
-// Expose for global use
-window.setLanguage = setLanguage;
-window.currentLanguage = currentLanguage;
-
 // Init
 async function init() {
-    // Initialize Accessibility Manager first (applies theme/font settings early)
+    // Initialize i18n module first
+    if (typeof I18n !== 'undefined') {
+        I18n.init();
+    }
+
+    // Initialize Accessibility Manager (applies theme/font settings early)
     if (typeof AccessibilityManager !== 'undefined') {
-        AccessibilityManager.init();
+        try {
+            AccessibilityManager.init();
+        } catch (e) {
+            console.warn('Failed to initialize AccessibilityManager:', e);
+        }
     }
 
     // Initialize Wallpaper Manager
     if (typeof WallpaperManager !== 'undefined') {
-        await WallpaperManager.init();
+        try {
+            await WallpaperManager.init();
+        } catch (e) {
+            console.warn('Failed to initialize WallpaperManager:', e);
+        }
     }
 
     // Ensure shortcuts exist (Double check)
@@ -838,11 +676,14 @@ async function init() {
         saveShortcuts();
     }
 
-    localize();
+    // Apply translations
+    if (typeof I18n !== 'undefined') {
+        I18n.localize();
+    }
     
     // Initialize custom selects after i18n is applied
     if (typeof CustomSelect !== 'undefined') {
-        CustomSelect.init('#tab-accessibility select, #tab-about select');
+        CustomSelect.init('#tab-accessibility select');
     }
     
     updateUI();

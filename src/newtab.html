@@ -244,7 +244,7 @@
                 <div class="tab-content" id="tab-about">
                     <div class="about-info">
                         <h3>GenresFox-NEWTAB</h3>
-                        <p>Version 0.3.0</p>
+                        <p>Version 0.3.5</p>
                         <p data-i18n="aboutDescription">A fully open-source, extremely clean, and highly customizable new tab page extension.</p>
                         <p>&copy; 2025 zayoka. All rights reserved.</p>
                         <br>
@@ -258,21 +258,17 @@
                         </a>
                     </div>
 
-                    <!-- Language Settings -->
-                    <div class="setting-group language-setting">
-                        <h3 data-i18n="languageLabel">Language</h3>
-                        <div class="a11y-control">
-                            <select id="languageSelect" onchange="setLanguage(this.value)">
-                                <option value="en">English</option>
-                                <option value="zh">简体中文</option>
-                            </select>
-                        </div>
+                    <div class="about-credits">
+                        <h4 data-i18n="creditsTitle">Credits</h4>
+                        <p data-i18n="creditsBingWallpaper">Default wallpaper powered by Bing Daily Wallpaper.</p>
                     </div>
+
                 </div>
             </div>
         </div>
     </div>
     <!-- Modules (must load before script.js) -->
+    <script src="i18n.js"></script>
     <script src="wallpaper.js"></script>
     <script src="accessibility.js"></script>
     <script src="script.js"></script>
