@@ -1,0 +1,1125 @@
+/**
+ * Accessibility Styles
+ * High contrast themes, font adjustments, motion preferences, and focus styles
+ */
+
+/* ==================== CSS Variables for Accessibility ==================== */
+:root {
+    --a11y-font-scale: 1;
+}
+
+/* ==================== Font Scaling ==================== */
+
+/* Apply font scaling to the entire document */
+html {
+    font-size: calc(16px * var(--a11y-font-scale));
+}
+
+/* Ensure modal and its contents scale properly */
+.modal {
+    font-size: calc(1rem * var(--a11y-font-scale));
+}
+
+/* Tab buttons need explicit scaling */
+.tabs {
+    font-size: calc(1rem * var(--a11y-font-scale));
+}
+
+.tab-btn {
+    font-size: calc(0.875rem * var(--a11y-font-scale));
+    padding: calc(8px * var(--a11y-font-scale));
+}
+
+/* Section headers in accessibility panel */
+.a11y-section h4 {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* Control labels */
+.a11y-control label,
+.setting-group label,
+.control-item label {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* Select dropdowns */
+.a11y-control select,
+select {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* Buttons */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+    font-size: calc(0.875rem * var(--a11y-font-scale));
+}
+
+/* Input fields */
+input[type="text"] {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* List items */
+.list-item {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* Setting group headers */
+.setting-group h3 {
+    font-size: calc(1rem * var(--a11y-font-scale));
+}
+
+/* About info */
+.about-info {
+    font-size: calc(0.9rem * var(--a11y-font-scale));
+}
+
+/* Search box */
+#search {
+    font-size: calc(1.2rem * var(--a11y-font-scale));
+}
+
+/* Shortcut names */
+.shortcut-name {
+    font-size: calc(12px * var(--a11y-font-scale));
+}
+
+/* Modal header */
+.modal-header h2 {
+    font-size: calc(1.2rem * var(--a11y-font-scale));
+}
+
+/* ==================== Font Families ==================== */
+
+/* Sans-serif (clean, modern) */
+.a11y-font-sans {
+    --font-family-override: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.a11y-font-sans body,
+.a11y-font-sans input,
+.a11y-font-sans button,
+.a11y-font-sans select {
+    font-family: var(--font-family-override) !important;
+}
+
+/* Serif (traditional, easier for some readers) */
+.a11y-font-serif {
+    --font-family-override: Georgia, "Times New Roman", Times, serif;
+}
+
+.a11y-font-serif body,
+.a11y-font-serif input,
+.a11y-font-serif button,
+.a11y-font-serif select {
+    font-family: var(--font-family-override) !important;
+}
+
+/* OpenDyslexic (dyslexia-friendly) - Multiple sources for reliability */
+@font-face {
+    font-family: 'OpenDyslexic';
+    src: url('https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@master/compiled/OpenDyslexic-Regular.woff2') format('woff2'),
+         url('https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@master/compiled/OpenDyslexic-Regular.woff') format('woff'),
+         url('https://fonts.cdnfonts.com/s/15286/OpenDyslexic-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'OpenDyslexic';
+    src: url('https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@master/compiled/OpenDyslexic-Bold.woff2') format('woff2'),
+         url('https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@master/compiled/OpenDyslexic-Bold.woff') format('woff'),
+         url('https://fonts.cdnfonts.com/s/15286/OpenDyslexic-Bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Apply OpenDyslexic to all elements */
+.a11y-font-dyslexic,
+.a11y-font-dyslexic * {
+    font-family: 'OpenDyslexic', sans-serif !important;
+}
+
+/* Ensure specific elements get the font */
+.a11y-font-dyslexic body,
+.a11y-font-dyslexic input,
+.a11y-font-dyslexic button,
+.a11y-font-dyslexic select,
+.a11y-font-dyslexic textarea,
+.a11y-font-dyslexic h1,
+.a11y-font-dyslexic h2,
+.a11y-font-dyslexic h3,
+.a11y-font-dyslexic h4,
+.a11y-font-dyslexic p,
+.a11y-font-dyslexic span,
+.a11y-font-dyslexic label,
+.a11y-font-dyslexic a,
+.a11y-font-dyslexic div,
+.a11y-font-dyslexic .shortcut-name,
+.a11y-font-dyslexic .tab-btn,
+.a11y-font-dyslexic .modal-header h2,
+.a11y-font-dyslexic .setting-group h3,
+.a11y-font-dyslexic .a11y-section h4,
+.a11y-font-dyslexic .custom-select-trigger,
+.a11y-font-dyslexic .custom-select-option,
+.a11y-font-dyslexic #search,
+.a11y-font-dyslexic #search::placeholder {
+    font-family: 'OpenDyslexic', sans-serif !important;
+}
+
+/* Also apply to Sans-serif and Serif more comprehensively */
+.a11y-font-sans,
+.a11y-font-sans * {
+    font-family: var(--font-family-override) !important;
+}
+
+.a11y-font-serif,
+.a11y-font-serif * {
+    font-family: var(--font-family-override) !important;
+}
+
+/* ==================== Line Spacing ==================== */
+
+.a11y-spacing-relaxed body {
+    line-height: 1.8 !important;
+}
+
+.a11y-spacing-relaxed .shortcut-name,
+.a11y-spacing-relaxed .list-item,
+.a11y-spacing-relaxed p {
+    line-height: 1.8 !important;
+}
+
+.a11y-spacing-very-relaxed body {
+    line-height: 2.2 !important;
+}
+
+.a11y-spacing-very-relaxed .shortcut-name,
+.a11y-spacing-very-relaxed .list-item,
+.a11y-spacing-very-relaxed p {
+    line-height: 2.2 !important;
+}
+
+/* ==================== Motion Preferences ==================== */
+
+/* Reduced motion - minimal animations */
+.a11y-motion-reduced *,
+.a11y-motion-reduced *::before,
+.a11y-motion-reduced *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+}
+
+/* No motion - completely disable animations */
+.a11y-motion-none *,
+.a11y-motion-none *::before,
+.a11y-motion-none *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* Fix: Ensure elements with fade-in animation are visible when animations are disabled */
+.a11y-motion-reduced .fade-in,
+.a11y-motion-none .fade-in {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+/* ==================== Focus Styles ==================== */
+
+/* Enhanced focus - thicker, more visible outline */
+.a11y-focus-enhanced *:focus-visible {
+    outline: 3px solid #3b82f6 !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Large focus - very prominent for low vision users */
+.a11y-focus-large *:focus-visible {
+    outline: 4px solid #fbbf24 !important;
+    outline-offset: 4px !important;
+    box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.4) !important;
+}
+
+/* ==================== High Contrast Themes ==================== */
+
+/* High Contrast Dark (white on black) */
+.a11y-theme-high-contrast-dark {
+    --hc-bg: #000000;
+    --hc-text: #ffffff;
+    --hc-accent: #00ffff;
+    --hc-border: #ffffff;
+    --hc-link: #ffff00;
+}
+
+.a11y-theme-high-contrast-dark body {
+    background: var(--hc-bg) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark body::before {
+    background: var(--hc-bg) !important;
+    background-image: none !important;
+}
+
+.a11y-theme-high-contrast-dark body::after {
+    background: transparent !important;
+}
+
+.a11y-theme-high-contrast-dark .search-box {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-dark #search {
+    color: var(--hc-text) !important;
+    text-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-dark #search::placeholder {
+    color: #cccccc !important;
+}
+
+.a11y-theme-high-contrast-dark .selected-engine {
+    background: var(--hc-bg) !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .engine-dropdown {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .engine-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .engine-option:hover {
+    background: #333333 !important;
+}
+
+.a11y-theme-high-contrast-dark .shortcut-item {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .shortcut-icon {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-dark .shortcut-name {
+    text-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-dark .settings-btn {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-dark .modal-overlay {
+    background: rgba(0, 0, 0, 0.95) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-dark .modal {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .modal-header {
+    border-bottom: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .tabs {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .tab-btn {
+    color: var(--hc-text) !important;
+    border: 1px solid transparent !important;
+}
+
+.a11y-theme-high-contrast-dark .tab-btn.active {
+    background: var(--hc-text) !important;
+    color: var(--hc-bg) !important;
+}
+
+.a11y-theme-high-contrast-dark .setting-group label,
+.a11y-theme-high-contrast-dark .setting-group h3 {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark input[type="text"],
+.a11y-theme-high-contrast-dark select {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .slider {
+    background: #333333 !important;
+}
+
+.a11y-theme-high-contrast-dark .slider::-webkit-slider-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-dark .slider::-moz-range-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-dark .btn-primary {
+    background: var(--hc-accent) !important;
+    color: var(--hc-bg) !important;
+    border: none !important;
+}
+
+.a11y-theme-high-contrast-dark .btn-secondary {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .list-item {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .upload-zone {
+    border: 2px dashed var(--hc-border) !important;
+    background: transparent !important;
+}
+
+.a11y-theme-high-contrast-dark .control-value {
+    color: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-dark a {
+    color: var(--hc-link) !important;
+}
+
+.a11y-theme-high-contrast-dark .github-btn {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+/* High Contrast Light (black on white) */
+.a11y-theme-high-contrast-light {
+    --hc-bg: #ffffff;
+    --hc-text: #000000;
+    --hc-accent: #0000ff;
+    --hc-border: #000000;
+    --hc-link: #0000cc;
+}
+
+.a11y-theme-high-contrast-light body {
+    background: var(--hc-bg) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light body::before {
+    background: var(--hc-bg) !important;
+    background-image: none !important;
+}
+
+.a11y-theme-high-contrast-light body::after {
+    background: transparent !important;
+}
+
+.a11y-theme-high-contrast-light .search-box {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light #search {
+    color: var(--hc-text) !important;
+    text-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light #search::placeholder {
+    color: #666666 !important;
+}
+
+.a11y-theme-high-contrast-light .selected-engine {
+    background: var(--hc-bg) !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-light .engine-dropdown {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light .engine-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .engine-option:hover {
+    background: #eeeeee !important;
+}
+
+.a11y-theme-high-contrast-light .shortcut-item {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .shortcut-icon {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light .shortcut-name {
+    text-shadow: none !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .settings-btn {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .modal-overlay {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-light .modal {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light .modal-header {
+    border-bottom: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-light .modal-header h2 {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .close-btn {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .tabs {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-light .tab-btn {
+    color: var(--hc-text) !important;
+    border: 1px solid transparent !important;
+}
+
+.a11y-theme-high-contrast-light .tab-btn.active {
+    background: var(--hc-text) !important;
+    color: var(--hc-bg) !important;
+}
+
+.a11y-theme-high-contrast-light .setting-group label,
+.a11y-theme-high-contrast-light .setting-group h3 {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light input[type="text"],
+.a11y-theme-high-contrast-light select {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .slider {
+    background: #cccccc !important;
+}
+
+.a11y-theme-high-contrast-light .slider::-webkit-slider-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-light .slider::-moz-range-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-light .btn-primary {
+    background: var(--hc-accent) !important;
+    color: var(--hc-bg) !important;
+    border: none !important;
+}
+
+.a11y-theme-high-contrast-light .btn-secondary {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .list-item {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .upload-zone {
+    border: 2px dashed var(--hc-border) !important;
+    background: transparent !important;
+}
+
+.a11y-theme-high-contrast-light .upload-content {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .upload-content svg {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .control-value {
+    color: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-light a {
+    color: var(--hc-link) !important;
+}
+
+.a11y-theme-high-contrast-light .github-btn {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .about-info p {
+    color: var(--hc-text) !important;
+}
+
+/* Yellow on Black (for specific visual impairments) */
+.a11y-theme-yellow-black {
+    --hc-bg: #000000;
+    --hc-text: #ffff00;
+    --hc-accent: #00ff00;
+    --hc-border: #ffff00;
+    --hc-link: #00ffff;
+}
+
+.a11y-theme-yellow-black body {
+    background: var(--hc-bg) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black body::before {
+    background: var(--hc-bg) !important;
+    background-image: none !important;
+}
+
+.a11y-theme-yellow-black body::after {
+    background: transparent !important;
+}
+
+.a11y-theme-yellow-black .search-box {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-yellow-black #search {
+    color: var(--hc-text) !important;
+    text-shadow: none !important;
+}
+
+.a11y-theme-yellow-black #search::placeholder {
+    color: #cccc00 !important;
+}
+
+.a11y-theme-yellow-black .selected-engine {
+    background: var(--hc-bg) !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-yellow-black .engine-dropdown {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-yellow-black .engine-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .engine-option:hover {
+    background: #333300 !important;
+}
+
+.a11y-theme-yellow-black .shortcut-item {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .shortcut-icon {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-yellow-black .shortcut-name {
+    text-shadow: none !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .settings-btn {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .modal-overlay {
+    background: rgba(0, 0, 0, 0.95) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-yellow-black .modal {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-yellow-black .modal-header {
+    border-bottom: 2px solid var(--hc-border) !important;
+}
+
+.a11y-theme-yellow-black .modal-header h2 {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .close-btn {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .tabs {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+}
+
+.a11y-theme-yellow-black .tab-btn {
+    color: var(--hc-text) !important;
+    border: 1px solid transparent !important;
+}
+
+.a11y-theme-yellow-black .tab-btn.active {
+    background: var(--hc-text) !important;
+    color: var(--hc-bg) !important;
+}
+
+.a11y-theme-yellow-black .setting-group label,
+.a11y-theme-yellow-black .setting-group h3 {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black input[type="text"],
+.a11y-theme-yellow-black select {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .slider {
+    background: #333300 !important;
+}
+
+.a11y-theme-yellow-black .slider::-webkit-slider-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-yellow-black .slider::-moz-range-thumb {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-yellow-black .btn-primary {
+    background: var(--hc-accent) !important;
+    color: var(--hc-bg) !important;
+    border: none !important;
+}
+
+.a11y-theme-yellow-black .btn-secondary {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .btn-danger {
+    background: transparent !important;
+    border: 2px solid #ff4444 !important;
+    color: #ff4444 !important;
+}
+
+.a11y-theme-yellow-black .list-item {
+    background: transparent !important;
+    border: 1px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .upload-zone {
+    border: 2px dashed var(--hc-border) !important;
+    background: transparent !important;
+}
+
+.a11y-theme-yellow-black .upload-content {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .upload-content svg {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .control-value {
+    color: var(--hc-accent) !important;
+}
+
+.a11y-theme-yellow-black a {
+    color: var(--hc-link) !important;
+}
+
+.a11y-theme-yellow-black .github-btn {
+    background: transparent !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .about-info p {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .delete-btn {
+    color: #ff6666 !important;
+}
+
+/* ==================== Accessibility Settings Panel Styles ==================== */
+
+.a11y-section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.a11y-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.a11y-section h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.a11y-control {
+    margin-bottom: 16px;
+}
+
+.a11y-control:last-child {
+    margin-bottom: 0;
+}
+
+.a11y-control label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+}
+
+.a11y-control select {
+    width: 100%;
+    padding: 12px 40px 12px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 400;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.a11y-control select:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.8)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.a11y-control select:focus {
+    border-color: rgba(99, 179, 237, 0.6);
+    box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.15),
+                0 4px 12px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.a11y-control select option {
+    background: #1c1c22;
+    color: #fff;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    border: none;
+}
+
+.a11y-control select option:hover,
+.a11y-control select option:focus,
+.a11y-control select option:checked {
+    background: linear-gradient(90deg, rgba(99, 179, 237, 0.25), rgba(99, 179, 237, 0.1));
+}
+
+/* High contrast theme adjustments for accessibility panel */
+.a11y-theme-high-contrast-dark .a11y-section,
+.a11y-theme-yellow-black .a11y-section {
+    border-bottom-color: var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-dark .a11y-section h4,
+.a11y-theme-high-contrast-dark .a11y-control label {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .a11y-section h4,
+.a11y-theme-yellow-black .a11y-control label {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .a11y-section {
+    border-bottom-color: var(--hc-border) !important;
+}
+
+.a11y-theme-high-contrast-light .a11y-section h4,
+.a11y-theme-high-contrast-light .a11y-control label {
+    color: var(--hc-text) !important;
+}
+
+/* ==================== Engine Change Notification ==================== */
+
+.engine-change-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: rgba(30, 30, 36, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.engine-change-notification.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.engine-change-notification svg {
+    color: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+}
+
+/* High contrast theme overrides for notification */
+.a11y-theme-high-contrast-dark .engine-change-notification {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-light .engine-change-notification {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-yellow-black .engine-change-notification {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-text) !important;
+    backdrop-filter: none !important;
+}
+
+/* ==================== Global Select Styling for Modal ==================== */
+
+/* Apply consistent styling to all selects in the modal */
+.modal select,
+.setting-group select {
+    width: 100%;
+    padding: 12px 40px 12px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 400;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.modal select:hover,
+.setting-group select:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.8)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.modal select:focus,
+.setting-group select:focus {
+    border-color: rgba(99, 179, 237, 0.6);
+    box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.15),
+                0 4px 12px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.modal select option,
+.setting-group select option {
+    background: #1c1c22;
+    color: #fff;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+}
+
+/* ==================== High Contrast Theme Overrides for Custom Select ==================== */
+
+.a11y-theme-high-contrast-dark .custom-select-trigger,
+.a11y-theme-high-contrast-dark .custom-select-options {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-high-contrast-dark .custom-select-trigger {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .custom-select-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-dark .custom-select-option:hover {
+    background: #333333 !important;
+}
+
+.a11y-theme-high-contrast-dark .custom-select-option.selected {
+    background: #333333 !important;
+}
+
+.a11y-theme-high-contrast-dark .custom-select-option.selected::before {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-trigger,
+.a11y-theme-high-contrast-light .custom-select-options {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-trigger {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-option:hover {
+    background: #eeeeee !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-option.selected {
+    background: #dddddd !important;
+}
+
+.a11y-theme-high-contrast-light .custom-select-option.selected::before {
+    background: var(--hc-accent) !important;
+}
+
+.a11y-theme-yellow-black .custom-select-trigger,
+.a11y-theme-yellow-black .custom-select-options {
+    background: var(--hc-bg) !important;
+    border: 2px solid var(--hc-border) !important;
+    backdrop-filter: none !important;
+}
+
+.a11y-theme-yellow-black .custom-select-trigger {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .custom-select-option {
+    color: var(--hc-text) !important;
+}
+
+.a11y-theme-yellow-black .custom-select-option:hover {
+    background: #333300 !important;
+}
+
+.a11y-theme-yellow-black .custom-select-option.selected {
+    background: #333300 !important;
+}
+
+.a11y-theme-yellow-black .custom-select-option.selected::before {
+    background: var(--hc-accent) !important;
+}
+
