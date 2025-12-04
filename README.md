@@ -22,12 +22,13 @@
 - **🔍 Multi-Engine Search**: Built-in support for Google, Bing, and DuckDuckGo
 - **⚙️ Custom Search Engines**: Add your own search engines with custom URLs
 - **🔖 Quick Shortcuts**: Create shortcuts to your favorite websites with auto-fetched favicons
-- **🖼️ Custom Wallpapers**: Upload your own background images with drag-and-drop support
-- **🌅 Bing Daily Wallpaper**: Beautiful daily wallpapers from Bing as default background
+- **🖼️ Custom Wallpapers**: Upload your own background images (up to 50MB, 50MP) with drag-and-drop support
+- **🌅 Bing Daily Wallpaper**: Beautiful daily wallpapers from Bing with smart 24-hour caching and preloading
+- **⚡ High-Performance Image Processing**: Web Worker support, progressive preview, and intelligent compression
 - **🌍 Multi-language**: English, Simplified Chinese, Traditional Chinese, Japanese
 - **♿ Accessibility**: High contrast themes, font controls, animation settings, keyboard shortcuts
 - **⌨️ Keyboard Shortcuts**: Quick engine switching (Alt+↑↓), focus search (/), open settings (Alt+,)
-- **💾 Icon Caching**: Automatically caches search engine icons for faster loading
+- **💾 Smart Caching**: Icon caching, wallpaper caching, and processing result caching for faster loading
 - **🎯 Clean & Minimal**: Distraction-free interface focused on what matters
 
 
@@ -75,8 +76,9 @@
 #### Custom Wallpaper
 1. Open settings and go to "Wallpaper" tab
 2. Drag and drop an image or click to upload
-3. Maximum file size: 2MB
-4. Click "Reset to Default" to restore the original background
+3. Maximum file size: 50MB, maximum resolution: 50 megapixels
+4. Images are automatically optimized and compressed for storage efficiency
+5. Click "Reset to Default" to restore the original background
 
 ### 🔧 Development
 
@@ -96,6 +98,8 @@ GenresFox-NEWTAB/
 │   ├── i18n.js             # Internationalization module
 │   ├── wallpaper.js        # Wallpaper management module
 │   ├── accessibility.js    # Accessibility features module
+│   ├── image-processor.js  # High-performance image processing module
+│   ├── image-worker.js     # Web Worker for background image processing
 │   ├── styles.css          # Main styles
 │   └── accessibility.css   # Accessibility styles
 ├── CHANGELOG.md
@@ -106,7 +110,9 @@ GenresFox-NEWTAB/
 - **Manifest V3**: Latest Chrome extension standard
 - **Vanilla JavaScript**: No frameworks, pure performance
 - **CSS3**: Modern styling with glassmorphism effects
-- **LocalStorage**: For persistent settings and caching
+- **Web Workers**: Background image processing without blocking UI
+- **IndexedDB**: For storing large wallpaper files and cache
+- **LocalStorage**: For persistent settings and metadata caching
 - **Chrome Extension APIs**: For internationalization and browser integration
 
 #### Adding New Languages
@@ -153,12 +159,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **🔍 多引擎搜索**: 内置支持 Google、Bing 和 DuckDuckGo
 - **⚙️ 自定义搜索引擎**: 添加您自己的搜索引擎和自定义 URL
 - **🔖 快捷方式**: 创建常用网站的快捷方式，自动获取网站图标
-- **🖼️ 自定义壁纸**: 上传您自己的背景图片，支持拖放上传
-- **🌅 必应每日壁纸**: 默认显示来自必应的精美每日壁纸
+- **🖼️ 自定义壁纸**: 上传您自己的背景图片（最大 50MB，5000万像素），支持拖放上传
+- **🌅 必应每日壁纸**: 来自必应的精美每日壁纸，支持智能24小时缓存和预加载
+- **⚡ 高性能图片处理**: Web Worker 支持、渐进式预览、智能压缩
 - **🌍 多语言支持**: 简体中文、繁体中文、日语、英语
 - **♿ 无障碍功能**: 高对比度主题、字体控制、动画设置、键盘快捷键
 - **⌨️ 键盘快捷键**: 快速切换搜索引擎 (Alt+↑↓)、聚焦搜索框 (/)、打开设置 (Alt+,)
-- **💾 图标缓存**: 自动缓存搜索引擎图标，加快加载速度
+- **💾 智能缓存**: 图标缓存、壁纸缓存、处理结果缓存，加快加载速度
 - **🎯 简洁极简**: 无干扰界面，专注于重要内容
 
 
@@ -206,8 +213,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 #### 自定义壁纸
 1. 打开设置，进入"壁纸"标签页
 2. 拖放图片或点击上传
-3. 最大文件大小：2MB
-4. 点击"恢复默认"可还原原始背景
+3. 最大文件大小：50MB，最大分辨率：5000万像素
+4. 图片会自动优化和压缩以提高存储效率
+5. 点击"恢复默认"可还原原始背景
 
 ### 🔧 开发
 
@@ -227,6 +235,8 @@ GenresFox-NEWTAB/
 │   ├── i18n.js             # 国际化模块
 │   ├── wallpaper.js        # 壁纸管理模块
 │   ├── accessibility.js    # 无障碍功能模块
+│   ├── image-processor.js  # 高性能图片处理模块
+│   ├── image-worker.js     # Web Worker 后台图片处理
 │   ├── styles.css          # 主样式文件
 │   └── accessibility.css   # 无障碍样式文件
 ├── CHANGELOG.md
@@ -237,7 +247,9 @@ GenresFox-NEWTAB/
 - **Manifest V3**: 最新的 Chrome 扩展标准
 - **原生 JavaScript**: 无框架依赖，纯粹的性能
 - **CSS3**: 现代样式与玻璃态效果
-- **LocalStorage**: 用于持久化设置和缓存
+- **Web Workers**: 后台图片处理，不阻塞 UI
+- **IndexedDB**: 用于存储大型壁纸文件和缓存
+- **LocalStorage**: 用于持久化设置和元数据缓存
 - **Chrome 扩展 API**: 用于国际化和浏览器集成
 
 #### 添加新语言
