@@ -1,13 +1,14 @@
 /**
  * High-Performance Image Processor Module
- * Handles large images (up to 100MB+) with optimized memory management
+ * Handles large images with optimized memory management
  * 
  * Features:
+ * - Web Worker support for non-blocking processing
  * - Smart resizing based on screen resolution
- * - Progressive loading (quick preview + background optimization)
- * - Chunked processing for very large images
+ * - Progressive/incremental preview rendering
+ * - Processing result caching
+ * - Chunked processing for large images
  * - Memory leak prevention
- * - Quality/size optimization
  */
 
 const ImageProcessor = (function() {
@@ -15,7 +16,7 @@ const ImageProcessor = (function() {
 
     // ==================== Configuration ====================
     const CONFIG = {
-        // Maximum dimensions (based on common 4K displays with some margin)
+        // Maximum dimensions (based on common 4K displays)
         MAX_WIDTH: 3840,
         MAX_HEIGHT: 2160,
         
@@ -23,30 +24,35 @@ const ImageProcessor = (function() {
         QUALITY_HIGH: 0.92,
         QUALITY_MEDIUM: 0.85,
         QUALITY_LOW: 0.7,
-        QUALITY_PREVIEW: 0.5,
+        QUALITY_PREVIEW: 0.4,
         
-        // Preview settings (for quick loading)
-        PREVIEW_MAX_WIDTH: 800,
-        PREVIEW_MAX_HEIGHT: 600,
+        // Preview settings - aggressive downsampling for speed
+        PREVIEW_TINY: 100,      // Ultra-fast first preview
+        PREVIEW_SMALL: 400,     // Quick preview
+        PREVIEW_MEDIUM: 800,    // Better preview
         
         // Processing thresholds
-        LARGE_IMAGE_THRESHOLD: 10 * 1024 * 1024,  // 10MB - use chunked processing
-        HUGE_IMAGE_THRESHOLD: 30 * 1024 * 1024,   // 30MB - use extra optimization
+        LARGE_IMAGE_THRESHOLD: 10 * 1024 * 1024,  // 10MB
+        HUGE_IMAGE_THRESHOLD: 30 * 1024 * 1024,   // 30MB
         
-        // Pixel count limits - reject images that are too large
-        MAX_PIXELS: 50 * 1000 * 1000,  // 50 megapixels max (e.g. 8660x5773 or 10000x5000)
+        // Pixel count limits
+        MAX_PIXELS: 50 * 1000 * 1000,  // 50 megapixels max
         
         // Memory management
-        CHUNK_SIZE: 2048,  // Process in 2048px chunks for large images
-        GC_DELAY: 100,     // Delay before garbage collection hint
+        CHUNK_SIZE: 2048,
+        GC_DELAY: 100,
         
-        // Supported formats
-        OUTPUT_FORMAT: 'image/webp',  // WebP for best compression
-        FALLBACK_FORMAT: 'image/jpeg', // Fallback if WebP not supported
+        // Output formats
+        OUTPUT_FORMAT: 'image/webp',
+        FALLBACK_FORMAT: 'image/jpeg',
         
         // File size limits
-        MAX_FILE_SIZE: 50 * 1024 * 1024,  // 50MB max file size
-        TARGET_OUTPUT_SIZE: 5 * 1024 * 1024, // Target 5MB output for storage efficiency
+        MAX_FILE_SIZE: 50 * 1024 * 1024,  // 50MB
+        TARGET_OUTPUT_SIZE: 5 * 1024 * 1024, // 5MB target
+        
+        // Cache settings
+        CACHE_MAX_ENTRIES: 10,
+        CACHE_MAX_SIZE: 50 * 1024 * 1024, // 50MB total cache
     };
 
     // ==================== State ====================
@@ -54,14 +60,193 @@ const ImageProcessor = (function() {
         isProcessing: false,
         supportsWebP: null,
         supportsOffscreenCanvas: typeof OffscreenCanvas !== 'undefined',
-        activeObjectUrls: new Set(),  // Track active URLs for cleanup
+        activeObjectUrls: new Set(),
+        worker: null,
+        workerReady: false,
+        workerCallbacks: new Map(),
+        callbackId: 0
     };
+
+    // ==================== Cache ====================
+    const _cache = {
+        entries: new Map(),  // hash -> { blob, metadata, timestamp, size }
+        totalSize: 0,
+        
+        /**
+         * Generate cache key from file
+         */
+        async generateKey(file) {
+            // Use file name + size + last modified as key
+            const keyData = `${file.name}_${file.size}_${file.lastModified}`;
+            
+            // Simple hash function
+            let hash = 0;
+            for (let i = 0; i < keyData.length; i++) {
+                const char = keyData.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return `img_${Math.abs(hash).toString(36)}`;
+        },
+        
+        /**
+         * Get cached result
+         */
+        get(key) {
+            const entry = this.entries.get(key);
+            if (entry) {
+                entry.lastAccess = Date.now();
+                console.log(`Cache hit for ${key}`);
+                return entry;
+            }
+            return null;
+        },
+        
+        /**
+         * Store result in cache
+         */
+        set(key, blob, metadata) {
+            // Evict old entries if needed
+            while (this.entries.size >= CONFIG.CACHE_MAX_ENTRIES || 
+                   this.totalSize + blob.size > CONFIG.CACHE_MAX_SIZE) {
+                if (this.entries.size === 0) break;
+                this.evictOldest();
+            }
+            
+            const entry = {
+                blob,
+                metadata,
+                timestamp: Date.now(),
+                lastAccess: Date.now(),
+                size: blob.size
+            };
+            
+            this.entries.set(key, entry);
+            this.totalSize += blob.size;
+            console.log(`Cached ${key}, total cache size: ${(this.totalSize / 1024 / 1024).toFixed(2)}MB`);
+        },
+        
+        /**
+         * Evict oldest entry
+         */
+        evictOldest() {
+            let oldestKey = null;
+            let oldestTime = Infinity;
+            
+            for (const [key, entry] of this.entries) {
+                if (entry.lastAccess < oldestTime) {
+                    oldestTime = entry.lastAccess;
+                    oldestKey = key;
+                }
+            }
+            
+            if (oldestKey) {
+                const entry = this.entries.get(oldestKey);
+                this.totalSize -= entry.size;
+                this.entries.delete(oldestKey);
+                console.log(`Evicted cache entry: ${oldestKey}`);
+            }
+        },
+        
+        /**
+         * Clear all cache
+         */
+        clear() {
+            this.entries.clear();
+            this.totalSize = 0;
+        }
+    };
+
+    // ==================== Web Worker ====================
+    
+    /**
+     * Initialize Web Worker
+     */
+    function _initWorker() {
+        if (_state.worker || !_state.supportsOffscreenCanvas) return;
+        
+        try {
+            _state.worker = new Worker('image-worker.js');
+            
+            _state.worker.onmessage = (e) => {
+                const { type, id, result, error, progress } = e.data;
+                
+                switch (type) {
+                    case 'loaded':
+                        console.log('Image Worker loaded');
+                        break;
+                        
+                    case 'ready':
+                        _state.workerReady = true;
+                        console.log('Image Worker ready');
+                        break;
+                        
+                    case 'progress':
+                        const progressCb = _state.workerCallbacks.get(id);
+                        if (progressCb?.onProgress) {
+                            progressCb.onProgress(progress);
+                        }
+                        break;
+                        
+                    case 'complete':
+                    case 'previewComplete':
+                        const cb = _state.workerCallbacks.get(id);
+                        if (cb?.resolve) {
+                            cb.resolve(result);
+                        }
+                        _state.workerCallbacks.delete(id);
+                        break;
+                        
+                    case 'error':
+                        const errCb = _state.workerCallbacks.get(id);
+                        if (errCb?.reject) {
+                            errCb.reject(new Error(error));
+                        }
+                        _state.workerCallbacks.delete(id);
+                        break;
+                }
+            };
+            
+            _state.worker.onerror = (e) => {
+                console.error('Worker error:', e);
+                _state.worker = null;
+                _state.workerReady = false;
+            };
+            
+            // Initialize worker with config
+            _state.worker.postMessage({
+                type: 'init',
+                id: 0,
+                data: { config: CONFIG }
+            });
+            
+        } catch (e) {
+            console.warn('Failed to create Worker:', e);
+            _state.worker = null;
+        }
+    }
+    
+    /**
+     * Send message to worker and wait for response
+     */
+    function _workerProcess(type, data, onProgress) {
+        return new Promise((resolve, reject) => {
+            if (!_state.worker || !_state.workerReady) {
+                reject(new Error('Worker not available'));
+                return;
+            }
+            
+            const id = ++_state.callbackId;
+            _state.workerCallbacks.set(id, { resolve, reject, onProgress });
+            
+            _state.worker.postMessage({ type, id, data });
+        });
+    }
 
     // ==================== Utility Functions ====================
 
     /**
      * Check if browser supports WebP encoding
-     * @returns {Promise<boolean>}
      */
     async function _checkWebPSupport() {
         if (_state.supportsWebP !== null) return _state.supportsWebP;
@@ -80,35 +265,25 @@ const ImageProcessor = (function() {
 
     /**
      * Get optimal output format
-     * @returns {Promise<string>}
      */
     async function _getOutputFormat() {
         return await _checkWebPSupport() ? CONFIG.OUTPUT_FORMAT : CONFIG.FALLBACK_FORMAT;
     }
 
     /**
-     * Calculate optimal dimensions while maintaining aspect ratio
-     * @param {number} width - Original width
-     * @param {number} height - Original height
-     * @param {number} maxWidth - Maximum width
-     * @param {number} maxHeight - Maximum height
-     * @returns {{width: number, height: number}}
+     * Calculate optimal dimensions
      */
     function _calculateDimensions(width, height, maxWidth, maxHeight) {
-        // Get actual screen dimensions (with device pixel ratio for retina)
         const screenWidth = Math.min(maxWidth, window.screen.width * (window.devicePixelRatio || 1));
         const screenHeight = Math.min(maxHeight, window.screen.height * (window.devicePixelRatio || 1));
         
-        // Use screen dimensions as target if smaller than max
         const targetWidth = Math.min(screenWidth, maxWidth);
         const targetHeight = Math.min(screenHeight, maxHeight);
         
-        // If image is smaller than target, no resize needed
         if (width <= targetWidth && height <= targetHeight) {
             return { width, height };
         }
         
-        // Calculate scale to fit
         const scaleX = targetWidth / width;
         const scaleY = targetHeight / height;
         const scale = Math.min(scaleX, scaleY);
@@ -120,9 +295,7 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Create an object URL and track it for cleanup
-     * @param {Blob} blob - Blob to create URL for
-     * @returns {string}
+     * Create tracked object URL
      */
     function _createTrackedObjectUrl(blob) {
         const url = URL.createObjectURL(blob);
@@ -131,8 +304,7 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Revoke a tracked object URL
-     * @param {string} url - URL to revoke
+     * Revoke tracked object URL
      */
     function _revokeTrackedObjectUrl(url) {
         if (url && _state.activeObjectUrls.has(url)) {
@@ -145,22 +317,17 @@ const ImageProcessor = (function() {
      * Clean up all tracked object URLs
      */
     function _cleanupAllObjectUrls() {
-        _state.activeObjectUrls.forEach(url => {
-            URL.revokeObjectURL(url);
-        });
+        _state.activeObjectUrls.forEach(url => URL.revokeObjectURL(url));
         _state.activeObjectUrls.clear();
     }
 
     /**
-     * Force garbage collection hint (not guaranteed)
+     * Hint garbage collection
      */
     function _hintGC() {
         return new Promise(resolve => {
             setTimeout(() => {
-                // Create and discard a large array to hint GC
-                if (typeof gc === 'function') {
-                    gc(); // Only available in Node.js or with --expose-gc
-                }
+                if (typeof gc === 'function') gc();
                 resolve();
             }, CONFIG.GC_DELAY);
         });
@@ -169,10 +336,7 @@ const ImageProcessor = (function() {
     // ==================== Image Loading ====================
 
     /**
-     * Load image from file with progress tracking
-     * @param {File} file - Image file
-     * @param {Function} onProgress - Progress callback (0-100)
-     * @returns {Promise<HTMLImageElement>}
+     * Load image from file
      */
     async function _loadImageFromFile(file, onProgress) {
         return new Promise((resolve, reject) => {
@@ -180,7 +344,7 @@ const ImageProcessor = (function() {
             const img = new Image();
             
             img.onload = () => {
-                if (onProgress) onProgress(30); // 30% - image decoded
+                if (onProgress) onProgress(30);
                 resolve(img);
             };
             
@@ -194,32 +358,24 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Load image from Blob
-     * @param {Blob} blob - Image blob
-     * @returns {Promise<HTMLImageElement>}
+     * Get ImageData from image (for Worker transfer)
      */
-    async function _loadImageFromBlob(blob) {
-        return new Promise((resolve, reject) => {
-            const url = _createTrackedObjectUrl(blob);
-            const img = new Image();
-            
-            img.onload = () => resolve(img);
-            img.onerror = () => {
-                _revokeTrackedObjectUrl(url);
-                reject(new Error('Failed to load image from blob'));
-            };
-            
-            img.src = url;
-        });
+    async function _getImageData(img) {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        canvas.width = 0;
+        canvas.height = 0;
+        return imageData;
     }
 
     // ==================== Canvas Processing ====================
 
     /**
-     * Create a canvas with optimal settings
-     * @param {number} width - Canvas width
-     * @param {number} height - Canvas height
-     * @returns {{canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D}}
+     * Create canvas with optimal settings
      */
     function _createCanvas(width, height) {
         const canvas = document.createElement('canvas');
@@ -227,12 +383,11 @@ const ImageProcessor = (function() {
         canvas.height = height;
         
         const ctx = canvas.getContext('2d', {
-            alpha: false,  // Disable alpha for better performance
-            desynchronized: true,  // Reduce latency
-            willReadFrequently: false  // Optimize for write-heavy operations
+            alpha: false,
+            desynchronized: true,
+            willReadFrequently: false
         });
         
-        // Enable image smoothing for quality
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         
@@ -240,12 +395,7 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Process image in chunks (for large images)
-     * @param {HTMLImageElement} img - Source image
-     * @param {number} targetWidth - Target width
-     * @param {number} targetHeight - Target height
-     * @param {Function} onProgress - Progress callback
-     * @returns {Promise<HTMLCanvasElement>}
+     * Process image in chunks
      */
     async function _processInChunks(img, targetWidth, targetHeight, onProgress) {
         const { canvas: finalCanvas, ctx: finalCtx } = _createCanvas(targetWidth, targetHeight);
@@ -259,55 +409,34 @@ const ImageProcessor = (function() {
         const totalChunks = chunksX * chunksY;
         let processedChunks = 0;
         
-        console.log(`Processing ${chunksX}x${chunksY} = ${totalChunks} chunks`);
-        
-        // Process each chunk
         for (let cy = 0; cy < chunksY; cy++) {
             for (let cx = 0; cx < chunksX; cx++) {
-                // Source coordinates
                 const sx = cx * chunkSize;
                 const sy = cy * chunkSize;
                 const sw = Math.min(chunkSize, img.width - sx);
                 const sh = Math.min(chunkSize, img.height - sy);
                 
-                // Destination coordinates
                 const dx = Math.round(sx * scaleX);
                 const dy = Math.round(sy * scaleY);
                 const dw = Math.max(1, Math.round(sw * scaleX));
                 const dh = Math.max(1, Math.round(sh * scaleY));
                 
-                // Skip if destination is too small
-                if (dw < 1 || dh < 1) {
-                    processedChunks++;
-                    continue;
+                if (dw >= 1 && dh >= 1) {
+                    const { canvas: tempCanvas, ctx: tempCtx } = _createCanvas(dw, dh);
+                    try {
+                        tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+                        finalCtx.drawImage(tempCanvas, dx, dy);
+                    } catch (e) {
+                        console.warn(`Chunk (${cx}, ${cy}) failed:`, e);
+                    }
+                    tempCanvas.width = 0;
+                    tempCanvas.height = 0;
                 }
-                
-                // Create temporary canvas for this chunk
-                const { canvas: tempCanvas, ctx: tempCtx } = _createCanvas(dw, dh);
-                
-                try {
-                    // Draw chunk
-                    tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
-                    
-                    // Copy to final canvas
-                    finalCtx.drawImage(tempCanvas, dx, dy);
-                } catch (e) {
-                    console.warn(`Failed to process chunk (${cx}, ${cy}):`, e);
-                }
-                
-                // Clean up temp canvas immediately
-                tempCanvas.width = 0;
-                tempCanvas.height = 0;
                 
                 processedChunks++;
-                if (onProgress) {
-                    // Progress from 35% to 75%
+                if (onProgress && processedChunks % 4 === 0) {
                     onProgress(35 + Math.round((processedChunks / totalChunks) * 40));
-                }
-                
-                // Yield to main thread periodically to prevent UI freeze
-                if (processedChunks % 4 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
+                    await new Promise(r => setTimeout(r, 0));
                 }
             }
         }
@@ -316,11 +445,7 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Process image directly (for smaller images)
-     * @param {HTMLImageElement} img - Source image
-     * @param {number} targetWidth - Target width
-     * @param {number} targetHeight - Target height
-     * @returns {HTMLCanvasElement}
+     * Direct processing
      */
     function _processDirect(img, targetWidth, targetHeight) {
         const { canvas, ctx } = _createCanvas(targetWidth, targetHeight);
@@ -329,18 +454,13 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Multi-step downscaling for better quality
-     * @param {HTMLImageElement} img - Source image
-     * @param {number} targetWidth - Target width
-     * @param {number} targetHeight - Target height
-     * @returns {HTMLCanvasElement}
+     * Multi-step downscaling
      */
     function _processWithSteps(img, targetWidth, targetHeight) {
         let currentWidth = img.width;
         let currentHeight = img.height;
         let source = img;
         
-        // Step down by factor of 2 until close to target
         while (currentWidth > targetWidth * 2 || currentHeight > targetHeight * 2) {
             const stepWidth = Math.max(targetWidth, Math.round(currentWidth / 2));
             const stepHeight = Math.max(targetHeight, Math.round(currentHeight / 2));
@@ -348,7 +468,6 @@ const ImageProcessor = (function() {
             const { canvas, ctx } = _createCanvas(stepWidth, stepHeight);
             ctx.drawImage(source, 0, 0, stepWidth, stepHeight);
             
-            // Clean up previous canvas if it's not the original image
             if (source !== img && source.width) {
                 source.width = 0;
                 source.height = 0;
@@ -359,12 +478,10 @@ const ImageProcessor = (function() {
             currentHeight = stepHeight;
         }
         
-        // Final step to exact target size
         if (currentWidth !== targetWidth || currentHeight !== targetHeight) {
             const { canvas: finalCanvas, ctx: finalCtx } = _createCanvas(targetWidth, targetHeight);
             finalCtx.drawImage(source, 0, 0, targetWidth, targetHeight);
             
-            // Clean up intermediate canvas
             if (source !== img && source.width) {
                 source.width = 0;
                 source.height = 0;
@@ -379,23 +496,14 @@ const ImageProcessor = (function() {
     // ==================== Output Generation ====================
 
     /**
-     * Convert canvas to blob with optimal compression
-     * @param {HTMLCanvasElement} canvas - Canvas to convert
-     * @param {number} quality - Quality (0-1)
-     * @returns {Promise<Blob>}
+     * Convert canvas to blob
      */
     async function _canvasToBlob(canvas, quality) {
         const format = await _getOutputFormat();
         
         return new Promise((resolve, reject) => {
             canvas.toBlob(
-                blob => {
-                    if (blob) {
-                        resolve(blob);
-                    } else {
-                        reject(new Error('Failed to convert canvas to blob'));
-                    }
-                },
+                blob => blob ? resolve(blob) : reject(new Error('Blob conversion failed')),
                 format,
                 quality
             );
@@ -403,26 +511,18 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Optimize blob size by adjusting quality
-     * @param {HTMLCanvasElement} canvas - Source canvas
-     * @param {number} targetSize - Target size in bytes
-     * @returns {Promise<Blob>}
+     * Optimize blob size
      */
     async function _optimizeBlobSize(canvas, targetSize) {
-        // Start with high quality
         let quality = CONFIG.QUALITY_HIGH;
         let blob = await _canvasToBlob(canvas, quality);
         
-        // If already under target, return
-        if (blob.size <= targetSize) {
-            return blob;
-        }
+        if (blob.size <= targetSize) return blob;
         
-        // Binary search for optimal quality
         let minQuality = 0.3;
         let maxQuality = quality;
         
-        for (let i = 0; i < 5; i++) {  // Max 5 iterations
+        for (let i = 0; i < 5; i++) {
             quality = (minQuality + maxQuality) / 2;
             blob = await _canvasToBlob(canvas, quality);
             
@@ -431,33 +531,89 @@ const ImageProcessor = (function() {
             } else if (blob.size < targetSize * 0.8) {
                 minQuality = quality;
             } else {
-                break;  // Close enough
+                break;
             }
         }
         
         return blob;
     }
 
-    // ==================== Main Processing Functions ====================
+    // ==================== Progressive Preview ====================
 
     /**
-     * Generate quick preview (low quality, fast)
-     * @param {File} file - Image file
-     * @returns {Promise<{url: string, cleanup: Function}>}
+     * Generate incremental previews (tiny -> small -> medium)
+     * Returns immediately with tiny preview, then upgrades
+     */
+    async function generateProgressivePreview(file, onPreviewUpdate) {
+        const img = await _loadImageFromFile(file);
+        const cleanups = [];
+        
+        // Stage 1: Tiny preview (instant)
+        const tinyDims = _calculateDimensions(img.width, img.height, CONFIG.PREVIEW_TINY, CONFIG.PREVIEW_TINY);
+        const tinyCanvas = _processDirect(img, tinyDims.width, tinyDims.height);
+        const tinyBlob = await _canvasToBlob(tinyCanvas, 0.3);
+        tinyCanvas.width = 0;
+        tinyCanvas.height = 0;
+        
+        const tinyUrl = _createTrackedObjectUrl(tinyBlob);
+        cleanups.push(() => _revokeTrackedObjectUrl(tinyUrl));
+        
+        if (onPreviewUpdate) {
+            onPreviewUpdate(tinyUrl, 'tiny', tinyDims.width, tinyDims.height);
+        }
+        
+        // Stage 2: Small preview (quick)
+        await new Promise(r => setTimeout(r, 10)); // Yield
+        
+        const smallDims = _calculateDimensions(img.width, img.height, CONFIG.PREVIEW_SMALL, CONFIG.PREVIEW_SMALL);
+        const smallCanvas = _processDirect(img, smallDims.width, smallDims.height);
+        const smallBlob = await _canvasToBlob(smallCanvas, 0.5);
+        smallCanvas.width = 0;
+        smallCanvas.height = 0;
+        
+        const smallUrl = _createTrackedObjectUrl(smallBlob);
+        cleanups.push(() => _revokeTrackedObjectUrl(smallUrl));
+        
+        if (onPreviewUpdate) {
+            onPreviewUpdate(smallUrl, 'small', smallDims.width, smallDims.height);
+        }
+        
+        // Stage 3: Medium preview (better quality)
+        await new Promise(r => setTimeout(r, 50)); // Yield more
+        
+        const mediumDims = _calculateDimensions(img.width, img.height, CONFIG.PREVIEW_MEDIUM, CONFIG.PREVIEW_MEDIUM);
+        const mediumCanvas = _processDirect(img, mediumDims.width, mediumDims.height);
+        const mediumBlob = await _canvasToBlob(mediumCanvas, CONFIG.QUALITY_PREVIEW);
+        mediumCanvas.width = 0;
+        mediumCanvas.height = 0;
+        
+        const mediumUrl = _createTrackedObjectUrl(mediumBlob);
+        cleanups.push(() => _revokeTrackedObjectUrl(mediumUrl));
+        
+        if (onPreviewUpdate) {
+            onPreviewUpdate(mediumUrl, 'medium', mediumDims.width, mediumDims.height);
+        }
+        
+        _revokeTrackedObjectUrl(img.src);
+        
+        return {
+            url: mediumUrl,
+            width: img.width,
+            height: img.height,
+            cleanup: () => cleanups.forEach(fn => fn())
+        };
+    }
+
+    /**
+     * Simple preview (single stage)
      */
     async function generatePreview(file) {
         const img = await _loadImageFromFile(file);
-        const { width, height } = _calculateDimensions(
-            img.width, 
-            img.height,
-            CONFIG.PREVIEW_MAX_WIDTH,
-            CONFIG.PREVIEW_MAX_HEIGHT
-        );
+        const dims = _calculateDimensions(img.width, img.height, CONFIG.PREVIEW_MEDIUM, CONFIG.PREVIEW_MEDIUM);
         
-        const canvas = _processDirect(img, width, height);
+        const canvas = _processDirect(img, dims.width, dims.height);
         const blob = await _canvasToBlob(canvas, CONFIG.QUALITY_PREVIEW);
         
-        // Clean up
         canvas.width = 0;
         canvas.height = 0;
         _revokeTrackedObjectUrl(img.src);
@@ -472,15 +628,10 @@ const ImageProcessor = (function() {
         };
     }
 
+    // ==================== Main Processing ====================
+
     /**
-     * Process image for optimal storage and display
-     * @param {File} file - Image file
-     * @param {Object} options - Processing options
-     * @param {Function} options.onProgress - Progress callback (0-100)
-     * @param {Function} options.onPreview - Preview ready callback
-     * @param {number} options.maxWidth - Max width override
-     * @param {number} options.maxHeight - Max height override
-     * @returns {Promise<{blob: Blob, width: number, height: number, originalSize: number, processedSize: number}>}
+     * Process image (with Worker if available, otherwise main thread)
      */
     async function processImage(file, options = {}) {
         if (_state.isProcessing) {
@@ -493,21 +644,44 @@ const ImageProcessor = (function() {
         const {
             onProgress = () => {},
             onPreview = () => {},
+            onPreviewUpdate = null,
             maxWidth = CONFIG.MAX_WIDTH,
-            maxHeight = CONFIG.MAX_HEIGHT
+            maxHeight = CONFIG.MAX_HEIGHT,
+            useCache = true,
+            useWorker = true
         } = options;
         
         try {
             // Validate file size
             if (file.size > CONFIG.MAX_FILE_SIZE) {
-                throw new Error(`File too large. Maximum size is ${CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`);
+                throw new Error(`File too large. Maximum: ${CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`);
+            }
+            
+            // Check cache
+            if (useCache) {
+                const cacheKey = await _cache.generateKey(file);
+                const cached = _cache.get(cacheKey);
+                if (cached) {
+                    onProgress(100);
+                    return {
+                        blob: cached.blob,
+                        ...cached.metadata,
+                        fromCache: true
+                    };
+                }
             }
             
             onProgress(5);
             
-            // Generate quick preview first
-            const preview = await generatePreview(file);
-            onPreview(preview.url);
+            // Generate progressive preview
+            let preview;
+            if (onPreviewUpdate) {
+                preview = await generateProgressivePreview(file, onPreviewUpdate);
+            } else {
+                preview = await generatePreview(file);
+                onPreview(preview.url);
+            }
+            
             onProgress(15);
             
             // Load full image
@@ -516,73 +690,84 @@ const ImageProcessor = (function() {
             const originalHeight = img.height;
             const totalPixels = originalWidth * originalHeight;
             
-            onProgress(35);
-            
-            // Reject images that exceed pixel limit
+            // Check pixel limit
             if (totalPixels > CONFIG.MAX_PIXELS) {
-                const megapixels = (totalPixels / 1000000).toFixed(1);
+                const mp = (totalPixels / 1000000).toFixed(1);
                 const maxMP = (CONFIG.MAX_PIXELS / 1000000).toFixed(0);
                 _revokeTrackedObjectUrl(img.src);
                 preview.cleanup();
-                throw new Error(`Image resolution too high (${megapixels}MP). Maximum supported: ${maxMP}MP`);
+                throw new Error(`Resolution too high (${mp}MP). Max: ${maxMP}MP`);
             }
+            
+            onProgress(35);
             
             // Calculate target dimensions
             const { width: targetWidth, height: targetHeight } = _calculateDimensions(
-                img.width,
-                img.height,
-                maxWidth,
-                maxHeight
+                img.width, img.height, maxWidth, maxHeight
             );
             
-            let canvas;
+            let blob;
             
-            // Choose processing method based on image size
-            if (file.size > CONFIG.HUGE_IMAGE_THRESHOLD) {
-                // Very large file - use chunked processing
-                console.log(`Using chunked processing for large image (${(totalPixels / 1000000).toFixed(1)}MP)`);
-                canvas = await _processInChunks(img, targetWidth, targetHeight, onProgress);
-            } else if (file.size > CONFIG.LARGE_IMAGE_THRESHOLD || 
-                       img.width > targetWidth * 3 || 
-                       img.height > targetHeight * 3) {
-                // Large image - use multi-step downscaling
-                console.log('Using multi-step processing for large image');
-                canvas = _processWithSteps(img, targetWidth, targetHeight);
-                onProgress(70);
-            } else {
-                // Normal image - direct processing
-                canvas = _processDirect(img, targetWidth, targetHeight);
-                onProgress(70);
+            // Try Worker first if available and enabled
+            if (useWorker && _state.worker && _state.workerReady && _state.supportsOffscreenCanvas) {
+                try {
+                    console.log('Processing with Worker');
+                    const imageData = await _getImageData(img);
+                    _revokeTrackedObjectUrl(img.src);
+                    
+                    const result = await _workerProcess('process', {
+                        imageData,
+                        maxWidth,
+                        maxHeight,
+                        screenWidth: window.screen.width * (window.devicePixelRatio || 1),
+                        screenHeight: window.screen.height * (window.devicePixelRatio || 1),
+                        format: await _getOutputFormat()
+                    }, onProgress);
+                    
+                    blob = result.blob;
+                    onProgress(95);
+                    
+                } catch (workerError) {
+                    console.warn('Worker processing failed, falling back to main thread:', workerError);
+                    // Fall through to main thread processing
+                }
             }
             
-            // Clean up source image URL
-            _revokeTrackedObjectUrl(img.src);
-            
-            onProgress(75);
-            
-            // Generate optimized output blob
-            const blob = await _optimizeBlobSize(canvas, CONFIG.TARGET_OUTPUT_SIZE);
+            // Main thread processing (fallback or primary)
+            if (!blob) {
+                let canvas;
+                
+                if (file.size > CONFIG.HUGE_IMAGE_THRESHOLD) {
+                    console.log('Using chunked processing');
+                    canvas = await _processInChunks(img, targetWidth, targetHeight, onProgress);
+                } else if (file.size > CONFIG.LARGE_IMAGE_THRESHOLD || 
+                           img.width > targetWidth * 3 || 
+                           img.height > targetHeight * 3) {
+                    console.log('Using multi-step processing');
+                    canvas = _processWithSteps(img, targetWidth, targetHeight);
+                    onProgress(70);
+                } else {
+                    canvas = _processDirect(img, targetWidth, targetHeight);
+                    onProgress(70);
+                }
+                
+                _revokeTrackedObjectUrl(img.src);
+                onProgress(75);
+                
+                blob = await _optimizeBlobSize(canvas, CONFIG.TARGET_OUTPUT_SIZE);
+                canvas.width = 0;
+                canvas.height = 0;
+            }
             
             onProgress(90);
             
-            // Clean up canvas
-            canvas.width = 0;
-            canvas.height = 0;
-            
-            // Clean up preview
             preview.cleanup();
-            
-            // Hint garbage collection
             await _hintGC();
             
             onProgress(100);
             
             const endTime = performance.now();
-            console.log(`Image processed in ${Math.round(endTime - startTime)}ms`);
-            console.log(`Original: ${file.size} bytes, Processed: ${blob.size} bytes`);
-            console.log(`Dimensions: ${originalWidth}x${originalHeight} → ${targetWidth}x${targetHeight}`);
-            
-            return {
+            const result = {
                 blob,
                 width: targetWidth,
                 height: targetHeight,
@@ -590,8 +775,27 @@ const ImageProcessor = (function() {
                 originalHeight,
                 originalSize: file.size,
                 processedSize: blob.size,
-                compressionRatio: (1 - blob.size / file.size) * 100
+                compressionRatio: (1 - blob.size / file.size) * 100,
+                processingTime: Math.round(endTime - startTime)
             };
+            
+            console.log(`Processed in ${result.processingTime}ms: ${file.size} → ${blob.size} bytes`);
+            
+            // Cache result
+            if (useCache) {
+                const cacheKey = await _cache.generateKey(file);
+                _cache.set(cacheKey, blob, {
+                    width: targetWidth,
+                    height: targetHeight,
+                    originalWidth,
+                    originalHeight,
+                    originalSize: file.size,
+                    processedSize: blob.size,
+                    compressionRatio: result.compressionRatio
+                });
+            }
+            
+            return result;
             
         } finally {
             _state.isProcessing = false;
@@ -599,10 +803,7 @@ const ImageProcessor = (function() {
     }
 
     /**
-     * Process image and return as Object URL
-     * @param {File} file - Image file
-     * @param {Object} options - Processing options
-     * @returns {Promise<{url: string, ...metadata}>}
+     * Process image and return URL
      */
     async function processImageToUrl(file, options = {}) {
         const result = await processImage(file, options);
@@ -615,14 +816,32 @@ const ImageProcessor = (function() {
         };
     }
 
-    // ==================== Cleanup ====================
+    // ==================== Cleanup & Init ====================
 
     /**
      * Clean up all resources
      */
     function cleanup() {
         _cleanupAllObjectUrls();
+        _cache.clear();
         _state.isProcessing = false;
+    }
+
+    /**
+     * Initialize module
+     */
+    function init() {
+        _initWorker();
+        _checkWebPSupport();
+    }
+
+    // Auto-initialize
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     }
 
     // ==================== Public API ====================
@@ -631,10 +850,18 @@ const ImageProcessor = (function() {
         processImage,
         processImageToUrl,
         generatePreview,
+        generateProgressivePreview,
         
         // Cleanup
         cleanup,
         revokeUrl: _revokeTrackedObjectUrl,
+        
+        // Cache
+        clearCache: () => _cache.clear(),
+        getCacheStats: () => ({
+            entries: _cache.entries.size,
+            totalSize: _cache.totalSize
+        }),
         
         // Utilities
         calculateDimensions: _calculateDimensions,
@@ -648,12 +875,15 @@ const ImageProcessor = (function() {
         
         // State
         isProcessing: () => _state.isProcessing,
-        getActiveUrlCount: () => _state.activeObjectUrls.size
+        getActiveUrlCount: () => _state.activeObjectUrls.size,
+        isWorkerAvailable: () => _state.workerReady,
+        
+        // Manual init
+        init
     };
 })();
 
-// Export for use in other modules
+// Export
 if (typeof window !== 'undefined') {
     window.ImageProcessor = ImageProcessor;
 }
-

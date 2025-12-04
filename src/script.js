@@ -321,13 +321,14 @@ let currentEngine = localStorage.getItem("preferredEngine") || "google";
 
 let shortcuts;
 try {
-    shortcuts = JSON.parse(localStorage.getItem("shortcuts"));
+    const stored = localStorage.getItem("shortcuts");
+    shortcuts = stored ? JSON.parse(stored) : null;
 } catch (e) {
     console.warn('Failed to parse shortcuts from localStorage, using defaults');
     shortcuts = null;
 }
 
-if (!shortcuts || shortcuts.length === 0) {
+if (!shortcuts || !Array.isArray(shortcuts) || shortcuts.length === 0) {
     shortcuts = defaultShortcuts;
     localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
 }
