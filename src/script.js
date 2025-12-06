@@ -1014,7 +1014,9 @@ window.initRippleEffects = initRippleEffects;
 // Then run full init
 init();
 
-/** "And if I only could
-I'd make a deal with God
-And I'd get Him to swap our places" 
-- Kate Bush, "Running Up That Hill" (1985) */
+/**
+ * "And if I only could
+ * I'd make a deal with God
+ * And I'd get Him to swap our places"
+ * - Kate Bush, "Running Up That Hill" (1985)
+ */

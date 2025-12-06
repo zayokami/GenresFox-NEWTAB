@@ -1,5 +1,5 @@
 /**
- * i18n.js - Internationalization Module for GenresFox-NEWTAB
+ * i18n.js - Internationalization Module for GenresFox
  * Handles language detection, translation, and localization
  */
 
@@ -9,7 +9,7 @@ const I18n = (function () {
     // Fallback messages for when Chrome i18n API is unavailable
     const _fallbackMessages = {
         "zh_CN": {
-            "appTitle": "GenresFox-NEWTAB",
+            "appTitle": "GenresFox",
             "searchPlaceholder": "搜索...",
             "settingsTitle": "设置",
             "tabWallpaper": "壁纸",
@@ -63,7 +63,7 @@ const I18n = (function () {
             "a11yFocusLarge": "大型",
             "a11yReset": "恢复默认设置",
             "aboutDescription": "一个完全开源、极简、高度可定制的新标签页扩展。",
-            "aboutOpenSource": "GenresFox-NEWTAB 是一个开源项目，你可以在 GitHub 上找到源代码！",
+            "aboutOpenSource": "GenresFox 是一个开源项目，你可以在 GitHub 上找到源代码！",
             "viewOnGitHub": "在 GitHub 上查看",
             "creditsTitle": "致谢",
             "creditsBingWallpaper": "默认壁纸由 Bing 每日壁纸提供。",
@@ -78,7 +78,7 @@ const I18n = (function () {
             "resetToBing": "已切换到 Bing 每日壁纸"
         },
         "en": {
-            "appTitle": "GenresFox-NEWTAB",
+            "appTitle": "GenresFox",
             "searchPlaceholder": "Search...",
             "settingsTitle": "Settings",
             "tabWallpaper": "Wallpaper",
@@ -132,7 +132,7 @@ const I18n = (function () {
             "a11yFocusLarge": "Large",
             "a11yReset": "Reset to Defaults",
             "aboutDescription": "A fully open-source, extremely clean, and highly customizable new tab page extension.",
-            "aboutOpenSource": "GenresFox-NEWTAB is an open-source project. You can find the source code on GitHub!",
+            "aboutOpenSource": "GenresFox is an open-source project. You can find the source code on GitHub!",
             "viewOnGitHub": "View on GitHub",
             "creditsTitle": "Credits",
             "creditsBingWallpaper": "Default wallpaper powered by Bing Daily Wallpaper.",
@@ -147,7 +147,7 @@ const I18n = (function () {
             "resetToBing": "Switched to Bing Daily Wallpaper"
         },
         "zh_TW": {
-            "appTitle": "GenresFox-NEWTAB",
+            "appTitle": "GenresFox",
             "searchPlaceholder": "搜尋...",
             "settingsTitle": "設定",
             "tabWallpaper": "桌布",
@@ -201,7 +201,7 @@ const I18n = (function () {
             "a11yFocusLarge": "大型",
             "a11yReset": "恢復預設設定",
             "aboutDescription": "一個完全開源、極簡、高度可自訂的新分頁擴充功能。",
-            "aboutOpenSource": "GenresFox-NEWTAB 是一個開源專案，你可以在 GitHub 上找到原始碼！",
+            "aboutOpenSource": "GenresFox 是一個開源專案，你可以在 GitHub 上找到原始碼！",
             "viewOnGitHub": "在 GitHub 上查看",
             "creditsTitle": "致謝",
             "creditsBingWallpaper": "預設桌布由 Bing 每日桌布提供。",
@@ -216,7 +216,7 @@ const I18n = (function () {
             "resetToBing": "已切換到 Bing 每日桌布"
         },
         "ja": {
-            "appTitle": "GenresFox-NEWTAB",
+            "appTitle": "GenresFox",
             "searchPlaceholder": "検索...",
             "settingsTitle": "設定",
             "tabWallpaper": "壁紙",
@@ -270,7 +270,7 @@ const I18n = (function () {
             "a11yFocusLarge": "大",
             "a11yReset": "デフォルトに戻す",
             "aboutDescription": "完全オープンソース、シンプル、高度にカスタマイズ可能な新しいタブページ拡張機能。",
-            "aboutOpenSource": "GenresFox-NEWTAB はオープンソースプロジェクトです。GitHub でソースコードを見つけることができます！",
+            "aboutOpenSource": "GenresFox はオープンソースプロジェクトです。GitHub でソースコードを見つけることができます！",
             "viewOnGitHub": "GitHub で見る",
             "creditsTitle": "クレジット",
             "creditsBingWallpaper": "デフォルト壁紙は Bing 日替わり壁紙を使用しています。",

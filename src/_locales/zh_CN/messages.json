@@ -3,7 +3,7 @@
         "message": "搜索..."
     },
     "appTitle": {
-        "message": "GenresFox-NEWTAB"
+        "message": "GenresFox"
     },
     "settingsTitle": {
         "message": "设置"
@@ -162,7 +162,7 @@
         "message": "一个完全开源、极简、高度可定制的新标签页扩展。"
     },
     "aboutOpenSource": {
-        "message": "GenresFox-NEWTAB 是一个开源项目，你可以在 GitHub 上找到源代码！"
+        "message": "GenresFox 是一个开源项目，你可以在 GitHub 上找到源代码！"
     },
     "viewOnGitHub": {
         "message": "在 GitHub 上查看"

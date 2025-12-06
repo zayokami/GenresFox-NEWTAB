@@ -3,7 +3,7 @@
         "message": "検索..."
     },
     "appTitle": {
-        "message": "GenresFox-NEWTAB"
+        "message": "GenresFox"
     },
     "settingsTitle": {
         "message": "設定"
@@ -162,7 +162,7 @@
         "message": "完全オープンソース、シンプル、高度にカスタマイズ可能な新しいタブページ拡張機能。"
     },
     "aboutOpenSource": {
-        "message": "GenresFox-NEWTAB はオープンソースプロジェクトです。GitHub でソースコードを見つけることができます！"
+        "message": "GenresFox はオープンソースプロジェクトです。GitHub でソースコードを見つけることができます！"
     },
     "viewOnGitHub": {
         "message": "GitHub で見る"

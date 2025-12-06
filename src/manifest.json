@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "GenresFox-NEWTAB",
+    "name": "GenresFox",
     "version": "0.3.7",
     "description": "A fully open-source, extremely clean, and highly customizable new tab page extension.",
     "default_locale": "en",

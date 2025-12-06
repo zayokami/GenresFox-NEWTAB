@@ -3,7 +3,7 @@
         "message": "Search..."
     },
     "appTitle": {
-        "message": "GenresFox-NEWTAB"
+        "message": "GenresFox"
     },
     "settingsTitle": {
         "message": "Settings"
@@ -162,7 +162,7 @@
         "message": "A fully open-source, extremely clean, and highly customizable new tab page extension."
     },
     "aboutOpenSource": {
-        "message": "GenresFox-NEWTAB is an open-source project. You can find the source code on GitHub!"
+        "message": "GenresFox is an open-source project. You can find the source code on GitHub!"
     },
     "viewOnGitHub": {
         "message": "View on GitHub"
