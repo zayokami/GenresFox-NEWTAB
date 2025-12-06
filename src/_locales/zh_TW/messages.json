@@ -190,6 +190,9 @@
     },
     "errorResolutionTooHigh": {
         "message": "圖片解析度過高（最大 5000 萬像素）"
+    },
+    "resetToBing": {
+        "message": "已切換到 Bing 每日桌布"
     }
 }
 

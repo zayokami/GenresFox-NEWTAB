@@ -5,6 +5,23 @@ All notable changes to GenresFox-NEWTAB will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2025-12-06
+
+### Added
+- Search box scale control with smooth focus-up scale
+- Shortcut drag-and-drop reordering and name visibility toggle with enhanced drag visuals
+- Lightweight notice after resetting to Bing Daily (non-blocking)
+
+### Changed
+- Search box scaling now uses overall `scale` for more natural proportions
+- Reset button auto-disables when not on custom wallpaper to avoid no-op clicks
+- Preview vertical position display uses `vh` to match actual effect
+
+### Fixed
+- Cannot re-upload the same image after reset (file input now cleared)
+- Reset hanging on Bing request timeout (added timeouts and fallback)
+- Status text misaligned/overlapping click area
+
 ## [0.3.5] - 2025-12-04
 
 ### Added

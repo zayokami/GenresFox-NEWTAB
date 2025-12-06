@@ -72,7 +72,8 @@ const I18n = (function () {
             "processingSaving": "保存中...",
             "processingStarting": "开始处理...",
             "errorImageTooLarge": "图片文件过大（最大 50MB）",
-            "errorResolutionTooHigh": "图片分辨率过高（最大 5000 万像素）"
+            "errorResolutionTooHigh": "图片分辨率过高（最大 5000 万像素）",
+            "resetToBing": "已切换到 Bing 每日壁纸"
         },
         "en": {
             "appTitle": "GenresFox-NEWTAB",
@@ -138,7 +139,8 @@ const I18n = (function () {
             "processingSaving": "Saving...",
             "processingStarting": "Starting...",
             "errorImageTooLarge": "Image file too large (max 50MB)",
-            "errorResolutionTooHigh": "Image resolution too high (max 50 megapixels)"
+            "errorResolutionTooHigh": "Image resolution too high (max 50 megapixels)",
+            "resetToBing": "Switched to Bing Daily Wallpaper"
         },
         "zh_TW": {
             "appTitle": "GenresFox-NEWTAB",
@@ -204,7 +206,8 @@ const I18n = (function () {
             "processingSaving": "儲存中...",
             "processingStarting": "開始處理...",
             "errorImageTooLarge": "圖片檔案過大（最大 50MB）",
-            "errorResolutionTooHigh": "圖片解析度過高（最大 5000 萬像素）"
+            "errorResolutionTooHigh": "圖片解析度過高（最大 5000 萬像素）",
+            "resetToBing": "已切換到 Bing 每日桌布"
         },
         "ja": {
             "appTitle": "GenresFox-NEWTAB",
@@ -270,7 +273,8 @@ const I18n = (function () {
             "processingSaving": "保存中...",
             "processingStarting": "処理を開始...",
             "errorImageTooLarge": "画像ファイルが大きすぎます（最大 50MB）",
-            "errorResolutionTooHigh": "画像の解像度が高すぎます（最大 5000 万ピクセル）"
+            "errorResolutionTooHigh": "画像の解像度が高すぎます（最大 5000 万ピクセル）",
+            "resetToBing": "Bing 日替わり壁紙に切り替えました"
         }
     };
 

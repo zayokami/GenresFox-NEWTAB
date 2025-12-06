@@ -421,6 +421,13 @@ input[type="text"]:focus {
     overflow: hidden;
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .btn-primary {
     background: var(--accent-color);
     color: #fff;

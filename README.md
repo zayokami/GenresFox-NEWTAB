@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.7-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Chrome](https://img.shields.io/badge/chrome-manifest%20v3-orange.svg)
 
@@ -291,6 +291,7 @@ GenresFox-NEWTAB/
 <div align="center">
 
 **如果这个项目对您有帮助，请给它一个 ⭐️！**
+
 **If this project has been helpful to you, please give it a ⭐️!**
 
 Made with ❤️ by zayoka

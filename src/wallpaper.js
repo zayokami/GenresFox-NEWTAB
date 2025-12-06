@@ -43,6 +43,10 @@ const WallpaperManager = (function () {
             MAX_CACHED_DAYS: 3,  // Keep last 3 days of wallpapers
             PRELOAD_DELAY: 30000  // Wait 30s after load before preloading
         },
+        TIMEOUTS: {
+            INFO: 8000,   // 8s for metadata fetch
+            IMAGE: 12000  // 12s for image download
+        },
         WALLPAPER_SOURCES: {
             CUSTOM: 'custom',
             BING: 'bing',
@@ -231,6 +235,53 @@ const WallpaperManager = (function () {
     }
 
     /**
+     * Show a lightweight status message near the wallpaper controls
+     * @param {string} text
+     * @param {number} duration
+     */
+    function _showStatusMessage(text, duration = 2000) {
+        let el = document.getElementById('wallpaper-status-message');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'wallpaper-status-message';
+            el.style.cssText = `
+                margin-top: 8px;
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 0.9rem;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+                display: block;
+                text-align: center;
+            `;
+            if (_elements.uploadContent && _elements.uploadContent.parentNode) {
+                _elements.uploadContent.parentNode.insertBefore(el, _elements.uploadContent.nextSibling);
+            } else {
+                document.body.appendChild(el);
+            }
+        }
+        el.textContent = text;
+        el.style.opacity = '1';
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => {
+            el.style.opacity = '0';
+        }, duration);
+    }
+
+    /**
+     * Enable/disable reset button based on wallpaper source
+     */
+    function _updateResetButtonState() {
+        if (!_elements.resetWallpaper) return;
+        const isCustom = _state.wallpaperSource === CONFIG.WALLPAPER_SOURCES.CUSTOM;
+        _elements.resetWallpaper.disabled = !isCustom;
+        _elements.resetWallpaper.classList.toggle('disabled', !isCustom);
+        _elements.resetWallpaper.setAttribute(
+            'aria-disabled',
+            (!isCustom).toString()
+        );
+    }
+
+    /**
      * Apply wallpaper effects (blur and vignette)
      */
     function _applyWallpaperEffects() {
@@ -403,6 +454,23 @@ const WallpaperManager = (function () {
     }
 
     /**
+     * Fetch with a timeout to avoid hanging requests
+     * @param {string} url
+     * @param {RequestInit} options
+     * @param {number} timeoutMs
+     * @returns {Promise<Response>}
+     */
+    async function _fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+        const controller = 'AbortController' in window ? new AbortController() : null;
+        const timer = setTimeout(() => controller?.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller?.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
      * Fetch Bing wallpaper info from API
      * @param {number} index - Day index (0 = today, -1 = tomorrow for some APIs)
      * @returns {Promise<Object|null>}
@@ -410,9 +478,10 @@ const WallpaperManager = (function () {
     async function _fetchBingWallpaperInfo(index = 0) {
         // Method 1: Try direct Bing API
         try {
-            const response = await fetch(
+            const response = await _fetchWithTimeout(
                 `${CONFIG.BING_API.BASE_URL}${CONFIG.BING_API.API_PATH}`,
-                { mode: 'cors' }
+                { mode: 'cors' },
+                CONFIG.TIMEOUTS.INFO
             );
             if (response.ok) {
                 const data = await response.json();
@@ -470,7 +539,7 @@ const WallpaperManager = (function () {
             // Prefer HD version
             const url = info.urlHD || info.url;
             
-            const response = await fetch(url);
+            const response = await _fetchWithTimeout(url, {}, CONFIG.TIMEOUTS.IMAGE);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -483,7 +552,7 @@ const WallpaperManager = (function () {
             // If HD fails, try standard resolution
             if (info.url !== info.urlHD) {
                 try {
-                    const response = await fetch(info.url);
+                    const response = await _fetchWithTimeout(info.url, {}, CONFIG.TIMEOUTS.IMAGE);
                     if (response.ok) {
                         return await response.blob();
                     }
@@ -648,6 +717,7 @@ const WallpaperManager = (function () {
             
             _state.wallpaperSource = CONFIG.WALLPAPER_SOURCES.BING;
             localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE, CONFIG.WALLPAPER_SOURCES.BING);
+            _updateResetButtonState();
             
             // Schedule preload of tomorrow's wallpaper
             _preloadTomorrowBingWallpaper();
@@ -861,6 +931,8 @@ const WallpaperManager = (function () {
             _state.wallpaperSource = CONFIG.WALLPAPER_SOURCES.CUSTOM;
             localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE, CONFIG.WALLPAPER_SOURCES.CUSTOM);
 
+            _updateResetButtonState();
+
             return true;
         } catch (err) {
             _hideProcessingProgress();
@@ -912,6 +984,9 @@ const WallpaperManager = (function () {
         
         if (!bingLoaded) {
             _setWallpaper('none');
+            _state.wallpaperSource = CONFIG.WALLPAPER_SOURCES.DEFAULT;
+        } else {
+            _showStatusMessage(_getLocalizedMessage('resetToBing', '已切换到 Bing 每日壁纸'), 2200);
         }
         
         // Show upload content and hide preview after reset
@@ -921,10 +996,16 @@ const WallpaperManager = (function () {
         if (_elements.wallpaperPreview) {
             _elements.wallpaperPreview.style.display = 'none';
         }
+        if (_elements.wallpaperUpload) {
+            // Clear file input so the same file can be selected again
+            _elements.wallpaperUpload.value = '';
+        }
         // Always show wallpaper controls (Bing wallpaper can also be adjusted)
         if (_elements.wallpaperControls) {
             _elements.wallpaperControls.style.display = 'block';
         }
+
+        _updateResetButtonState();
     }
 
     // ==================== Event Handlers ====================
@@ -1013,7 +1094,7 @@ const WallpaperManager = (function () {
         _state.searchBoxSettings.position = value;
 
         if (_elements.searchPositionValue) {
-            _elements.searchPositionValue.textContent = `${value}%`;
+            _elements.searchPositionValue.textContent = `${value}vh`;
         }
 
         localStorage.setItem(
@@ -1249,7 +1330,7 @@ const WallpaperManager = (function () {
             _elements.searchPositionSlider.value = position;
         }
         if (_elements.searchPositionValue) {
-            _elements.searchPositionValue.textContent = `${position}%`;
+            _elements.searchPositionValue.textContent = `${position}vh`;
         }
         if (_elements.searchScaleSlider) {
             _elements.searchScaleSlider.value = scale;
@@ -1325,6 +1406,8 @@ const WallpaperManager = (function () {
         if (wallpaperLoaded) {
             localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE, _state.wallpaperSource);
         }
+
+        _updateResetButtonState();
 
         return wallpaperLoaded;
     }
