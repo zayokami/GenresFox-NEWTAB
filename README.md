@@ -26,7 +26,7 @@
 - **🖼️ Custom Wallpapers**: Upload your own background images (up to 50MB, 50MP) with drag-and-drop support
 - **🌅 Bing Daily Wallpaper**: Beautiful daily wallpapers from Bing with smart 24-hour caching and preloading
 - **⚡ High-Performance Image Processing**: Web Worker support, progressive preview, and intelligent compression
-- **🌍 Multi-language**: English, Simplified Chinese, Traditional Chinese, Japanese
+- **🌍 Multi-language**: English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, French
 - **♿ Accessibility**: High contrast themes, font controls, animation settings, keyboard shortcuts
 - **⌨️ Keyboard Shortcuts**: Quick engine switching (Alt+↑↓), focus search (/), open settings (Alt+,)
 - **💾 Smart Caching**: Icon caching, wallpaper caching, and processing result caching for faster loading
@@ -89,6 +89,8 @@ GenresFox/
 ├── src/
 │   ├── _locales/           # Internationalization files
 │   │   ├── en/
+│   │   ├── es/
+│   │   ├── fr/
 │   │   ├── ja/
 │   │   ├── zh_CN/
 │   │   └── zh_TW/
@@ -124,6 +126,7 @@ GenresFox/
 3. Translate all message values
 4. Add the language to `_fallbackMessages` in `src/i18n.js`
 5. Update `_supportedLanguages` array and `_detectLanguage()` function
+6. Add a language switch entry if needed in UI
 
 ### 🤝 Contributing
 
@@ -165,7 +168,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **🖼️ 自定义壁纸**: 上传您自己的背景图片（最大 50MB，5000万像素），支持拖放上传
 - **🌅 必应每日壁纸**: 来自必应的精美每日壁纸，支持智能24小时缓存和预加载
 - **⚡ 高性能图片处理**: Web Worker 支持、渐进式预览、智能压缩
-- **🌍 多语言支持**: 简体中文、繁体中文、日语、英语
+- **🌍 多语言支持**: 简体中文、繁体中文、日语、英语、西班牙语、法语
 - **♿ 无障碍功能**: 高对比度主题、字体控制、动画设置、键盘快捷键
 - **⌨️ 键盘快捷键**: 快速切换搜索引擎 (Alt+↑↓)、聚焦搜索框 (/)、打开设置 (Alt+,)
 - **💾 智能缓存**: 图标缓存、壁纸缓存、处理结果缓存，加快加载速度
@@ -228,6 +231,8 @@ GenresFox/
 ├── src/
 │   ├── _locales/           # 国际化文件
 │   │   ├── en/
+│   │   ├── es/
+│   │   ├── fr/
 │   │   ├── ja/
 │   │   ├── zh_CN/
 │   │   └── zh_TW/
@@ -263,6 +268,7 @@ GenresFox/
 3. 翻译所有消息值
 4. 在 `src/i18n.js` 的 `_fallbackMessages` 中添加该语言
 5. 更新 `_supportedLanguages` 数组和 `_detectLanguage()` 函数
+6. 如需在界面中显示语言切换入口，请同步新增
 
 ### 🤝 贡献
 
