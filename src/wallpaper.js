@@ -18,7 +18,8 @@ const WallpaperManager = (function () {
             SEARCH_BOX_SETTINGS: 'searchBoxSettings',
             LEGACY_WALLPAPER: 'wallpaper',
             BING_WALLPAPER_CACHE: 'bingWallpaperCache',
-            WALLPAPER_SOURCE: 'wallpaperSource'
+            WALLPAPER_SOURCE: 'wallpaperSource',
+            BING_MARKET: 'bingMarket'
         },
         CSS_VARS: {
             WALLPAPER_IMAGE: '--wallpaper-image',
@@ -44,7 +45,10 @@ const WallpaperManager = (function () {
         BING_CACHE: {
             DB_STORE_NAME: 'bingWallpapers',
             MAX_CACHED_DAYS: 3,  // Keep last 3 days of wallpapers
-            PRELOAD_DELAY: 30000  // Wait 30s after load before preloading
+            PRELOAD_DELAY: 30000,  // Wait 30s after load before preloading
+            LRU_MAX_ENTRIES: 6,    // Hard cap for entries
+            LRU_MAX_BYTES: 40 * 1024 * 1024, // 40MB total for Bing blobs in IndexedDB
+            MEMORY_MAX_BYTES: 20 * 1024 * 1024 // In-memory budget for Bing blobs
         },
         TIMEOUTS: {
             INFO: 8000,   // 8s for metadata fetch
@@ -66,8 +70,13 @@ const WallpaperManager = (function () {
         bingWallpaperInfo: null,
         isInitialized: false,
         dbInstance: null,
-        bingPreloadScheduled: false
+        bingPreloadScheduled: false,
+        bingMarket: 'en-US'
     };
+
+    // In-memory LRU cache for Bing blobs
+    const _bingMemoryCache = new Map(); // key -> { blob, size, lastAccess }
+    let _bingMemoryBytes = 0;
 
     const SEARCH_LIMITS = {
         width: { min: 300, max: 1000, fallback: 600 },
@@ -103,6 +112,19 @@ const WallpaperManager = (function () {
     };
 
     // ==================== IndexedDB Operations ====================
+
+    /**
+     * Run a task when the browser is idle (fallback to setTimeout)
+     * @param {Function} fn
+     * @param {number} timeout
+     */
+    function _runWhenIdle(fn, timeout = 1000) {
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => fn(), { timeout });
+        } else {
+            setTimeout(fn, 0);
+        }
+    }
 
     /**
      * Open IndexedDB database connection
@@ -355,15 +377,165 @@ const WallpaperManager = (function () {
 
     // ==================== Bing Daily Wallpaper ====================
 
+    // ----- Bing cache helpers -----
+    function _getBingMem(key) {
+        const entry = _bingMemoryCache.get(key);
+        if (!entry) return null;
+        entry.lastAccess = Date.now();
+        _bingMemoryCache.delete(key);
+        _bingMemoryCache.set(key, entry); // move to tail (recent)
+        return entry.blob;
+    }
+
+    function _evictOldestBingMem() {
+        const oldestKey = _bingMemoryCache.keys().next().value;
+        if (!oldestKey) return;
+        const entry = _bingMemoryCache.get(oldestKey);
+        _bingMemoryCache.delete(oldestKey);
+        _bingMemoryBytes = Math.max(0, _bingMemoryBytes - (entry?.size || 0));
+    }
+
+    function _putBingMem(key, blob) {
+        const size = blob?.size || 0;
+        if (size > CONFIG.BING_CACHE.MEMORY_MAX_BYTES) return; // skip oversized
+        while (_bingMemoryBytes + size > CONFIG.BING_CACHE.MEMORY_MAX_BYTES && _bingMemoryCache.size > 0) {
+            _evictOldestBingMem();
+        }
+        const entry = { blob, size, lastAccess: Date.now() };
+        // Replace if exists to keep bytes accurate
+        if (_bingMemoryCache.has(key)) {
+            const prev = _bingMemoryCache.get(key);
+            _bingMemoryBytes = Math.max(0, _bingMemoryBytes - (prev?.size || 0));
+            _bingMemoryCache.delete(key);
+        }
+        _bingMemoryCache.set(key, entry);
+        _bingMemoryBytes += size;
+    }
+
+    async function _updateBingLastAccess(db, key, lastAccess) {
+        return new Promise((resolve) => {
+            const tx = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readwrite');
+            const store = tx.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
+            const req = store.get(key);
+            req.onsuccess = () => {
+                const entry = req.result;
+                if (!entry) return resolve();
+                entry.lastAccess = lastAccess;
+                store.put(entry);
+            };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+        });
+    }
+
+    async function _enforceBingCacheLimits(db) {
+        const maxEntries = CONFIG.BING_CACHE.LRU_MAX_ENTRIES;
+        const maxBytes = CONFIG.BING_CACHE.LRU_MAX_BYTES;
+        const entries = [];
+        await new Promise((resolve) => {
+            const tx = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readonly');
+            const store = tx.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
+            const req = store.openCursor();
+            req.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    const value = cursor.value;
+                    entries.push({
+                        id: value.id,
+                        size: value.size ?? value.blob?.size ?? 0,
+                        lastAccess: value.lastAccess ?? value.timestamp ?? 0
+                    });
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            req.onerror = () => resolve();
+        });
+
+        let totalBytes = entries.reduce((sum, e) => sum + (e.size || 0), 0);
+        if (entries.length <= maxEntries && totalBytes <= maxBytes) return;
+
+        entries.sort((a, b) => (a.lastAccess || 0) - (b.lastAccess || 0)); // oldest first
+        const toDelete = [];
+        for (const entry of entries) {
+            if (entries.length - toDelete.length <= maxEntries && totalBytes <= maxBytes) break;
+            toDelete.push(entry.id);
+            totalBytes -= entry.size || 0;
+        }
+
+        if (toDelete.length === 0) return;
+        await new Promise((resolve) => {
+            const tx = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readwrite');
+            const store = tx.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
+            toDelete.forEach(id => store.delete(id));
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+        });
+    }
+
+    async function _removeBingCacheEntry(key) {
+        try {
+            const db = await _openDB();
+            await new Promise((resolve) => {
+                const tx = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readwrite');
+                const store = tx.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
+                store.delete(key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
+        } catch (e) {
+            // Silent failure; best effort
+        }
+    }
+
     /**
-     * Get today's date string (YYYYMMDD format, in local timezone)
+     * Get today's date string (YYYYMMDD) using browser timezone
      * @param {number} offsetDays - Days to offset (0 = today, 1 = tomorrow, -1 = yesterday)
      * @returns {string}
      */
     function _getDateString(offsetDays = 0) {
-        const date = new Date();
-        date.setDate(date.getDate() + offsetDays);
-        return date.toISOString().slice(0, 10).replace(/-/g, '');
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const target = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+        return formatter.format(target).replace(/-/g, '');
+    }
+
+    /**
+     * Detect Bing market from browser language, fallback to en-US
+     * @returns {string}
+     */
+    function _detectBingMarket() {
+        const lang = (navigator.languages && navigator.languages[0]) || navigator.language || 'en-US';
+        // Normalize underscores to hyphen (e.g., zh_CN -> zh-CN)
+        const normalized = lang.replace('_', '-');
+        return normalized || 'en-US';
+    }
+
+    /**
+     * Get start-of-today timestamp (local timezone)
+     * @returns {number}
+     */
+    function _getStartOfTodayTs() {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const parts = formatter.formatToParts(new Date());
+        const y = parts.find(p => p.type === 'year')?.value;
+        const m = parts.find(p => p.type === 'month')?.value;
+        const d = parts.find(p => p.type === 'day')?.value;
+        const iso = `${y}-${m}-${d}T00:00:00`;
+        const ts = new Date(iso).getTime();
+        return Number.isFinite(ts) ? ts : Date.now();
     }
 
     /**
@@ -384,16 +556,35 @@ const WallpaperManager = (function () {
      */
     async function _getBingImageFromCache(dateStr) {
         try {
+            const key = `bing_${dateStr}`;
+
+            // In-memory fast path
+            const mem = _getBingMem(key);
+            if (mem) return mem;
+
             const db = await _openDB();
             return await new Promise((resolve, reject) => {
                 const transaction = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readonly');
                 const store = transaction.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
-                const request = store.get(`bing_${dateStr}`);
+                const request = store.get(key);
                 
                 request.onsuccess = () => {
                     const result = request.result;
                     if (result && result.blob) {
+                        // Stale guard: date mismatch or past today's boundary
+                        const entryDate = result.date || result.info?.date;
+                        const startOfToday = _getStartOfTodayTs();
+                        const entryTs = result.timestamp || result.lastAccess || 0;
+                        const isDateMismatch = entryDate && entryDate !== dateStr;
+                        const isTooOld = entryTs && entryTs < startOfToday;
+                        if (isDateMismatch || isTooOld) {
+                            _removeBingCacheEntry(key);
+                            resolve(null);
+                            return;
+                        }
                         console.log(`Bing wallpaper cache hit for ${dateStr}`);
+                        _putBingMem(key, result.blob);
+                        _updateBingLastAccess(db, key, Date.now());
                         resolve(result.blob);
                     } else {
                         resolve(null);
@@ -416,16 +607,21 @@ const WallpaperManager = (function () {
     async function _saveBingImageToCache(dateStr, blob, info) {
         try {
             const db = await _openDB();
+            const key = `bing_${dateStr}`;
+            const size = blob?.size || 0;
+            const now = Date.now();
             await new Promise((resolve, reject) => {
                 const transaction = db.transaction([CONFIG.BING_CACHE.DB_STORE_NAME], 'readwrite');
                 const store = transaction.objectStore(CONFIG.BING_CACHE.DB_STORE_NAME);
                 
                 const data = {
-                    id: `bing_${dateStr}`,
+                    id: key,
                     blob: blob,
                     info: info,
                     date: dateStr,
-                    timestamp: Date.now()
+                    timestamp: now,
+                    lastAccess: now,
+                    size: size
                 };
                 
                 const request = store.put(data);
@@ -436,6 +632,10 @@ const WallpaperManager = (function () {
                 request.onerror = () => reject(request.error);
             });
             
+            // Memory cache + LRU enforcement
+            _putBingMem(key, blob);
+            await _enforceBingCacheLimits(db);
+
             // Clean up old cache entries
             await _cleanupOldBingCache();
         } catch (e) {
@@ -491,6 +691,33 @@ const WallpaperManager = (function () {
         } finally {
             clearTimeout(timer);
         }
+    }
+
+    /**
+     * Fetch with retry and exponential backoff
+     * @param {string} url
+     * @param {RequestInit} options
+     * @param {number} timeoutMs
+     * @param {number} attempts
+     * @param {number} baseDelayMs
+     * @returns {Promise<Response>}
+     */
+    async function _fetchWithRetry(url, options = {}, timeoutMs = 10000, attempts = 3, baseDelayMs = 200) {
+        let lastError = null;
+        for (let i = 0; i < attempts; i++) {
+            try {
+                const resp = await _fetchWithTimeout(url, options, timeoutMs);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return resp;
+            } catch (err) {
+                lastError = err;
+                if (i < attempts - 1) {
+                    const delay = baseDelayMs * Math.pow(2, i);
+                    await new Promise(r => setTimeout(r, delay));
+                }
+            }
+        }
+        throw lastError || new Error('Fetch failed');
     }
 
     /**
@@ -559,33 +786,30 @@ const WallpaperManager = (function () {
      */
     async function _downloadBingWallpaper(info) {
         try {
-            // Prefer HD version
-            const url = info.urlHD || info.url;
-            
-            const response = await _fetchWithTimeout(url, {}, CONFIG.TIMEOUTS.IMAGE);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
-            const blob = await response.blob();
-            console.log(`Downloaded Bing wallpaper: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
-            
-            return blob;
-        } catch (e) {
-            // If HD fails, try standard resolution
-            if (info.url !== info.urlHD) {
+            const candidates = [];
+            if (info.urlHD) candidates.push(info.urlHD);
+            if (info.url && info.url !== info.urlHD) candidates.push(info.url);
+
+            for (const candidate of candidates) {
                 try {
-                    const response = await _fetchWithTimeout(info.url, {}, CONFIG.TIMEOUTS.IMAGE);
-                    if (response.ok) {
-                        return await response.blob();
-                    }
-                } catch (e2) {
-                    // Both failed
+                    const response = await _fetchWithRetry(
+                        candidate,
+                        {},
+                        CONFIG.TIMEOUTS.IMAGE,
+                        3,
+                        200
+                    );
+                    const blob = await response.blob();
+                    console.log(`Downloaded Bing wallpaper: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+                    return blob;
+                } catch (err) {
+                    // Continue to next candidate with backoff already applied
                 }
             }
+        } catch (e) {
             console.warn('Failed to download Bing wallpaper:', e);
-            return null;
         }
+        return null;
     }
 
     /**
@@ -636,7 +860,13 @@ const WallpaperManager = (function () {
 
             const data = JSON.parse(cached);
             
-            // Check if cache is for today
+            // Check if cache is for today and not older than start-of-day
+            const startOfToday = _getStartOfTodayTs();
+            const cacheTs = data.timestamp || 0;
+            if (cacheTs < startOfToday) {
+                localStorage.removeItem(CONFIG.STORAGE_KEYS.BING_WALLPAPER_CACHE);
+                return null;
+            }
             if (data.info && _isBingCacheValid(data.info.date)) {
                 return data.info;
             }
@@ -1283,7 +1513,8 @@ const WallpaperManager = (function () {
             searchPositionValue: document.getElementById('searchPositionValue'),
             searchScaleValue: document.getElementById('searchScaleValue'),
             searchRadiusValue: document.getElementById('searchRadiusValue'),
-            searchShadowValue: document.getElementById('searchShadowValue')
+            searchShadowValue: document.getElementById('searchShadowValue'),
+            useBingWallpaper: document.getElementById('useBingWallpaper')
         };
     }
 
@@ -1341,6 +1572,11 @@ const WallpaperManager = (function () {
         // Reset button
         if (_elements.resetWallpaper) {
             _elements.resetWallpaper.addEventListener('click', _resetWallpaper);
+        }
+
+        // Wallpaper source switches
+        if (_elements.useBingWallpaper) {
+            _elements.useBingWallpaper.addEventListener('click', () => _applyBingWallpaper());
         }
     }
 
@@ -1449,8 +1685,12 @@ const WallpaperManager = (function () {
     async function _loadWallpaper() {
         let wallpaperLoaded = false;
 
-        // Check saved wallpaper source preference
-        const savedSource = localStorage.getItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE);
+        // Check saved wallpaper source preference (clean up legacy values)
+        let savedSource = localStorage.getItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE);
+        if (savedSource && savedSource !== CONFIG.WALLPAPER_SOURCES.BING && savedSource !== CONFIG.WALLPAPER_SOURCES.CUSTOM) {
+            savedSource = CONFIG.WALLPAPER_SOURCES.BING;
+            localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE, savedSource);
+        }
 
         // Try loading custom wallpaper from IndexedDB first
         try {
@@ -1483,16 +1723,16 @@ const WallpaperManager = (function () {
             }
         }
 
-        // If no custom wallpaper, try Bing daily wallpaper
+        // If nothing loaded yet, respect saved source preference
         if (!wallpaperLoaded) {
             try {
-                const bingLoaded = await _applyBingWallpaper();
-                if (bingLoaded) {
-                    wallpaperLoaded = true;
-                    console.log('Loaded Bing daily wallpaper');
-                }
+                // Don't block UI on network; kick off Bing fetch in background when idle
+                _runWhenIdle(() => {
+                    _applyBingWallpaper().catch((e) => console.warn('Failed to load Bing wallpaper (async):', e));
+                }, 1500);
+                wallpaperLoaded = true; // allow UI to continue with transparent/previous state
             } catch (e) {
-                console.warn('Failed to load Bing wallpaper:', e);
+                console.warn('Failed to load preferred wallpaper source:', e);
             }
         }
 
@@ -1527,8 +1767,8 @@ const WallpaperManager = (function () {
         // 3. Bind events
         _bindEvents();
 
-        // 4. Load wallpaper
-        await _loadWallpaper();
+        // 4. Load wallpaper (non-blocking to avoid first-paint stall)
+        _loadWallpaper().catch((e) => console.warn('Wallpaper load failed:', e));
 
         // 5. Apply effects
         _applyWallpaperEffects();

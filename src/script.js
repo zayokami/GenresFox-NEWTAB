@@ -281,6 +281,8 @@ const addShortcutBtn = document.getElementById("addShortcutBtn");
 const engineSelector = document.querySelector(".engine-selector");
 const selectedEngineIcon = document.querySelector(".selected-engine");
 const engineDropdown = document.querySelector(".engine-dropdown");
+const shortcutOpenCurrent = document.getElementById("shortcutOpenCurrent");
+const shortcutOpenNewTab = document.getElementById("shortcutOpenNewTab");
 
 // Default Data
 const defaultEngines = {
@@ -319,6 +321,17 @@ try {
 
 let currentEngine = localStorage.getItem("preferredEngine") || "google";
 
+const FOLDER_FEATURE_ENABLED = false; // Temporarily disable folder feature
+const SHORTCUT_TARGET_KEY = 'shortcutOpenTarget';
+
+// --- Image helpers to reduce hotlink failures ---
+function _decorateImg(img) {
+    if (!img) return;
+    img.referrerPolicy = 'no-referrer';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+}
+
 let shortcuts;
 try {
     const stored = localStorage.getItem("shortcuts");
@@ -331,6 +344,24 @@ try {
 if (!shortcuts || !Array.isArray(shortcuts) || shortcuts.length === 0) {
     shortcuts = defaultShortcuts;
     localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+}
+
+// Folder helpers
+function _isFolder(item) {
+    return item && item.type === 'folder' && Array.isArray(item.items);
+}
+
+function _createFolderName() {
+    const base = (window.I18n && I18n.t) ? I18n.t('folderDefault', 'Folder') : 'Folder';
+    const ts = Date.now().toString().slice(-3);
+    return `${base} ${ts}`;
+}
+
+function _ensureShortcutId(item) {
+    if (!item.id) {
+        item.id = `shortcut_${Math.random().toString(36).slice(2, 8)}`;
+    }
+    return item;
 }
 
 // --- Helper Functions ---
@@ -349,69 +380,226 @@ function saveShortcuts() {
 function getFavicon(url) {
     try {
         const domain = new URL(url).hostname;
-        return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+        // DuckDuckGo icon service returns CORS-enabled .ico
+        return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
     } catch (e) {
         return "icon.png";
     }
 }
 
-// --- Icon Caching Logic ---
-async function cacheIcon(key, url) {
-    try {
-        // Try direct fetch first (works for same-origin or CORS-enabled)
-        const response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) throw new Error('Network response was not ok');
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            localStorage.setItem(`icon_cache_${key}`, reader.result);
-            // Don't call updateUI here to avoid infinite loop, just update the specific image
-            document.querySelectorAll(`img[data-cache-key="${key}"]`).forEach(img => {
-                img.src = reader.result;
-            });
-        };
-        reader.readAsDataURL(blob);
-    } catch (error) {
-        // If direct fetch fails, try using an Image element (can load cross-origin images)
+function _buildIconCandidates(rawIconUrl, pageUrl) {
+    const candidates = [];
+    const seen = new Set();
+    const add = (u) => {
+        if (!u || seen.has(u)) return;
+        candidates.push(u);
+        seen.add(u);
+    };
+
+    // Start with provided icon URL (if any)
+    if (rawIconUrl) add(rawIconUrl);
+
+    const basisUrl = pageUrl || rawIconUrl;
+    if (basisUrl) {
         try {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width || 64;
-                    canvas.height = img.height || 64;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    const dataUrl = canvas.toDataURL('image/png');
-                    localStorage.setItem(`icon_cache_${key}`, dataUrl);
-                    document.querySelectorAll(`img[data-cache-key="${key}"]`).forEach(imgEl => {
-                        imgEl.src = dataUrl;
-                    });
-                } catch (canvasError) {
-                    // Canvas tainted by cross-origin data, can't cache
-                    console.warn(`Cannot cache icon (CORS): ${key}`);
-                }
-            };
-            img.onerror = () => {
-                console.warn(`Failed to load icon for caching: ${key}`);
-            };
-            img.src = url;
-        } catch (imgError) {
-            console.warn(`Failed to cache icon for ${key}`, imgError);
+            const urlObj = new URL(basisUrl);
+            const origin = urlObj.origin;
+            const domain = urlObj.hostname;
+            add(`${origin}/favicon.ico`);
+            add(`${origin}/apple-touch-icon.png`);
+            add(`${origin}/apple-touch-icon-precomposed.png`);
+            // DuckDuckGo icon service (CORS)
+            add(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+            // Google s2 (may be non-CORS; keep as late fallback)
+            add(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+        } catch (e) {
+            // Ignore parse errors
         }
     }
+
+    if (candidates.length === 0) add("icon.png");
+    return candidates;
 }
 
-function getIconSrc(key, url) {
-    const cached = localStorage.getItem(`icon_cache_${key}`);
-    if (cached) return cached;
-    // Schedule caching in background
-    setTimeout(() => cacheIcon(key, url), 100);
-    return url;
+// --- Icon Caching Logic (IndexedDB with expiry and fallback) ---
+const ICON_CACHE_DB_NAME = 'genresfox-icon-cache';
+const ICON_CACHE_STORE = 'icons';
+const ICON_CACHE_DB_VERSION = 1;
+const ICON_CACHE_VERSION = 1;
+const ICON_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const _iconCacheInMemory = new Map();
+const _iconCacheInFlight = new Map();
+let _iconCacheDbPromise = null;
+
+function _openIconCacheDB() {
+    if (_iconCacheDbPromise) return _iconCacheDbPromise;
+    _iconCacheDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(ICON_CACHE_DB_NAME, ICON_CACHE_DB_VERSION);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(ICON_CACHE_STORE)) {
+                db.createObjectStore(ICON_CACHE_STORE, { keyPath: 'key' });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+    return _iconCacheDbPromise;
+}
+
+function _isIconFresh(entry) {
+    if (!entry) return false;
+    if (entry.version !== ICON_CACHE_VERSION) return false;
+    return (Date.now() - entry.updatedAt) < ICON_CACHE_TTL;
+}
+
+async function _getIconFromDB(key) {
+    const db = await _openIconCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(ICON_CACHE_STORE, 'readonly');
+        const store = tx.objectStore(ICON_CACHE_STORE);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function _putIconToDB(key, dataUrl) {
+    const db = await _openIconCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(ICON_CACHE_STORE, 'readwrite');
+        const store = tx.objectStore(ICON_CACHE_STORE);
+        const record = { key, data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION };
+        store.put(record);
+        tx.oncomplete = () => resolve(record);
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+function _updateImagesForKey(key, dataUrl) {
+    document.querySelectorAll(`img[data-cache-key="${key}"]`).forEach(img => {
+        img.src = dataUrl;
+    });
+}
+
+async function _fetchIconAsDataUrl(url) {
+    // Direct fetch first
+    const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error('Network response was not ok');
+        const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function _loadIconViaImage(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width || 64;
+                canvas.height = img.height || 64;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            } catch (err) {
+                reject(err);
+            }
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = url;
+    });
+}
+
+async function cacheIcon(key, rawIconUrl, pageUrl) {
+    if (_iconCacheInFlight.has(key)) return _iconCacheInFlight.get(key);
+
+    const task = (async () => {
+        const candidates = _buildIconCandidates(rawIconUrl, pageUrl);
+
+        for (const candidate of candidates) {
+            try {
+                const dataUrl = await _fetchIconAsDataUrl(candidate);
+                _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION });
+                await _putIconToDB(key, dataUrl);
+                _updateImagesForKey(key, dataUrl);
+                // Keep legacy localStorage for backward compatibility
+                localStorage.setItem(`icon_cache_${key}`, dataUrl);
+                return;
+            } catch (fetchErr) {
+                // If fetch failed, try canvas-based fallback
+                try {
+                    const dataUrl = await _loadIconViaImage(candidate);
+                    _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION });
+                    await _putIconToDB(key, dataUrl);
+                    _updateImagesForKey(key, dataUrl);
+                    localStorage.setItem(`icon_cache_${key}`, dataUrl);
+                    return;
+                } catch (imgErr) {
+                    // Continue to next candidate
+                }
+            }
+        }
+        console.warn(`Failed to cache icon: ${key}`);
+    })().finally(() => {
+        _iconCacheInFlight.delete(key);
+    });
+
+    _iconCacheInFlight.set(key, task);
+    return task;
+}
+
+function getIconSrc(key, url, pageUrl) {
+    const preferredUrl = url || (pageUrl ? getFavicon(pageUrl) : null) || "icon.png";
+
+    // 1) In-memory cache
+    const mem = _iconCacheInMemory.get(key);
+    if (mem && _isIconFresh(mem)) return mem.data;
+
+    // 2) Legacy localStorage (migrate to DB asynchronously)
+    const legacy = localStorage.getItem(`icon_cache_${key}`);
+    if (legacy) {
+        _iconCacheInMemory.set(key, { data: legacy, updatedAt: 0, version: ICON_CACHE_VERSION });
+        _putIconToDB(key, legacy).catch(() => {});
+        // Refresh asynchronously to ensure freshness
+        cacheIcon(key, preferredUrl, pageUrl);
+        return legacy;
+    }
+
+    // 3) IndexedDB async fetch; update DOM when ready
+    _getIconFromDB(key).then(entry => {
+        if (entry && _isIconFresh(entry)) {
+            _iconCacheInMemory.set(key, entry);
+            _updateImagesForKey(key, entry.data);
+        } else if (entry && entry.data) {
+            // Stale: show it first, then refresh
+            _iconCacheInMemory.set(key, entry);
+            _updateImagesForKey(key, entry.data);
+            cacheIcon(key, preferredUrl, pageUrl);
+        } else {
+            cacheIcon(key, preferredUrl, pageUrl);
+        }
+    }).catch(() => cacheIcon(key, preferredUrl, pageUrl));
+
+    // 4) Fallback to live URL while cache resolves
+    return preferredUrl;
 }
 
 // --- UI Rendering ---
+function _updateSearchActionWidth() {
+    if (!searchActionBtn || !searchActionLabel) return;
+    const labelWidth = searchActionLabel.scrollWidth;
+    const base = 44; // collapsed width
+    const padding = 32; // padding and gap
+    const expanded = Math.max(base + padding + labelWidth, 112);
+    searchActionBtn.style.setProperty('--search-action-expand', `${expanded}px`);
+}
+
 function updateUI() {
     // Update selected engine icon
     const engine = engines[currentEngine] || engines.google;
@@ -422,6 +610,11 @@ function updateUI() {
     img.alt = engine.name;
     img.width = 20;
     img.height = 20;
+    _decorateImg(img);
+    img.onerror = () => {
+        img.onerror = null;
+        img.src = 'icon.png';
+    };
     img.dataset.cacheKey = currentEngine; // For updating after cache completes
     selectedEngineIcon.appendChild(img);
 
@@ -440,6 +633,11 @@ function renderEngineDropdown() {
         img.src = getIconSrc(key, engine.icon);
         img.width = 20;
         img.height = 20;
+        _decorateImg(img);
+        img.onerror = () => {
+            img.onerror = null;
+            img.src = 'icon.png';
+        };
         img.dataset.cacheKey = key; // For updating after cache completes
         
         const span = document.createElement('span');
@@ -464,6 +662,11 @@ function renderEnginesList() {
         img.src = getIconSrc(key, engine.icon);
         img.width = 20;
         img.height = 20;
+        _decorateImg(img);
+        img.onerror = () => {
+            img.onerror = null;
+            img.src = 'icon.png';
+        };
         spanInfo.appendChild(img);
         spanInfo.appendChild(document.createTextNode(' ' + engine.name));
         div.appendChild(spanInfo);
@@ -487,12 +690,32 @@ function renderShortcutsList() {
         div.className = "list-item";
 
         const spanInfo = document.createElement("span");
-        const img = document.createElement('img');
-        img.src = shortcut.icon;
-        img.width = 20;
-        img.height = 20;
-        spanInfo.appendChild(img);
-        spanInfo.appendChild(document.createTextNode(' ' + shortcut.name));
+        if (_isFolder(shortcut)) {
+            const folderIcon = document.createElement('span');
+            folderIcon.textContent = '[Folder]';
+            folderIcon.style.marginRight = '8px';
+            spanInfo.appendChild(folderIcon);
+            spanInfo.appendChild(document.createTextNode(shortcut.name || 'Folder'));
+        } else {
+            const img = document.createElement('img');
+            _decorateImg(img);
+            // Prefer cached icon; cache key matches grid view (url as stable identifier)
+            const cacheKey = `shortcut_${shortcut.url}`;
+            img.src = getIconSrc(cacheKey, shortcut.icon, shortcut.url);
+            img.dataset.cacheKey = cacheKey;
+            img.width = 20;
+            img.height = 20;
+            img.onerror = () => {
+                // Fallback to first letter to avoid repeated remote fetch retries
+                img.style.display = 'none';
+                const fallback = document.createElement('span');
+                fallback.textContent = shortcut.name.charAt(0).toUpperCase();
+                fallback.style.fontWeight = '600';
+                spanInfo.appendChild(fallback);
+            };
+            spanInfo.appendChild(img);
+            spanInfo.appendChild(document.createTextNode(' ' + shortcut.name));
+        }
         div.appendChild(spanInfo);
 
         const deleteBtn = document.createElement("span");
@@ -511,25 +734,74 @@ function renderShortcutsGrid() {
     // Apply hide-names class based on setting
     const showNames = localStorage.getItem('showShortcutNames') !== 'false';
     shortcutsGrid.classList.toggle('hide-names', !showNames);
+    const targetPref = (localStorage.getItem(SHORTCUT_TARGET_KEY) || 'current') === 'newtab' ? '_blank' : '_self';
     
     shortcuts.forEach((shortcut, index) => {
         const a = document.createElement("a");
-        a.href = shortcut.url;
         a.className = "shortcut-item";
         a.draggable = true;
         a.dataset.index = index;
+        a.target = targetPref;
+        if (targetPref === '_blank') {
+            a.rel = 'noopener noreferrer';
+        }
+
+        if (_isFolder(shortcut) && FOLDER_FEATURE_ENABLED) {
+            a.classList.add('shortcut-folder');
+            a.href = 'javascript:void(0)';
+            a.dataset.type = 'folder';
+            a.addEventListener('click', () => openFolderOverlay(index));
+
+            const iconDiv = document.createElement("div");
+            iconDiv.className = "shortcut-icon folder-icon";
+
+            const stack = document.createElement('div');
+            stack.className = 'folder-stack';
+            const previews = shortcut.items.slice(0, 4);
+            previews.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = 'folder-stack-cell';
+                const img = document.createElement('img');
+                img.alt = item.name;
+                const cacheKey = `shortcut_${item.url || item.id}`;
+                img.src = getIconSrc(cacheKey, item.icon || '', item.url);
+                img.onerror = () => {
+                    img.style.display = 'none';
+                    cell.textContent = (item.name || '?').charAt(0).toUpperCase();
+                };
+                cell.appendChild(img);
+                stack.appendChild(cell);
+            });
+            if (previews.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'folder-stack-empty';
+                empty.textContent = '[Folder]';
+                stack.appendChild(empty);
+            }
+            iconDiv.appendChild(stack);
+
+            const nameDiv = document.createElement("div");
+            nameDiv.className = "shortcut-name";
+            nameDiv.textContent = shortcut.name || 'Folder';
+
+            a.appendChild(iconDiv);
+            a.appendChild(nameDiv);
+        } else {
+            a.href = shortcut.url;
+            a.dataset.type = 'item';
 
         const iconDiv = document.createElement("div");
         iconDiv.className = "shortcut-icon loading"; // Add loading class for skeleton
 
         const img = document.createElement("img");
         img.alt = shortcut.name;
-        
-        // Use cached icon with stable key based on URL (not index, which changes on delete)
-        const cacheKey = `shortcut_${shortcut.url}`;
-        img.dataset.cacheKey = cacheKey; // For updating after cache completes
-        const iconSrc = getIconSrc(cacheKey, shortcut.icon);
-        img.src = iconSrc;
+        _decorateImg(img);
+            
+            // Use cached icon with stable key based on URL (not index, which changes on delete)
+            const cacheKey = `shortcut_${shortcut.url}`;
+            img.dataset.cacheKey = cacheKey; // For updating after cache completes
+            const iconSrc = getIconSrc(cacheKey, shortcut.icon, shortcut.url);
+            img.src = iconSrc;
 
         // Remove loading class when image loads or fails
         img.onload = () => iconDiv.classList.remove("loading");
@@ -550,6 +822,7 @@ function renderShortcutsGrid() {
 
         a.appendChild(iconDiv);
         a.appendChild(nameDiv);
+        }
         
         // Add drag event listeners
         a.addEventListener('dragstart', handleShortcutDragStart);
@@ -582,7 +855,38 @@ window.deleteEngine = (key) => {
     saveEngines();
 };
 
-window.deleteShortcut = (index) => {
+window.deleteShortcut = (index, options = {}) => {
+    const shortcut = shortcuts[index];
+    if (!shortcut) return;
+
+    const { silent } = options;
+    if (!silent) {
+        const label = shortcut.name || shortcut.url || 'shortcut';
+        const i18nMsg = (window.I18n && I18n.getMessage) ? I18n.getMessage('deleteShortcutConfirm') : '';
+        let message = i18nMsg || '';
+
+        // Fallback to browser language if i18n not ready or missing
+        if (!message) {
+            const lang = (window.I18n && I18n.getCurrentLanguage && I18n.getCurrentLanguage()) ||
+                (navigator.language || '').toLowerCase();
+            if (lang.startsWith('zh')) {
+                message = '确认删除快捷方式“%s”？';
+            } else if (lang.startsWith('ja')) {
+                message = 'ショートカット「%s」を削除しますか？';
+            } else {
+                message = 'Delete shortcut "%s"?';
+            }
+        }
+
+        if (message.includes('%s')) {
+            message = message.replace('%s', label);
+        } else {
+            message = `${message} "${label}"?`;
+        }
+        const confirmed = confirm(message);
+        if (!confirmed) return;
+    }
+
     shortcuts.splice(index, 1);
     saveShortcuts();
 };
@@ -617,10 +921,24 @@ if (resetShortcutsBtn) {
     });
 }
 
-// Security: Check if URL uses dangerous protocol
+// Security: Allow only http/https and reject control chars / blank
 function isDangerousUrl(url) {
-    const dangerous = /^(javascript|data|vbscript|file):/i;
-    return dangerous.test(url.trim());
+    if (!url || typeof url !== 'string') return true;
+    const trimmed = url.trim();
+    // Reject control/non-printable chars
+    if (/[^\x20-\x7E]/.test(trimmed)) return true;
+
+    try {
+        // If protocol missing, assume https for validation only
+        const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+        const parsed = new URL(candidate);
+        const proto = (parsed.protocol || '').toLowerCase();
+        if (proto !== 'http:' && proto !== 'https:') return true;
+        return false;
+    } catch (e) {
+        // If parsing失败，视为危险
+        return true;
+    }
 }
 
 // Add Engine
@@ -669,28 +987,6 @@ addShortcutBtn.addEventListener("click", () => {
     }
 });
 
-// Search Logic
-function handleSearch(e) {
-    if (e.key === "Enter") {
-        let val = searchInput.value.trim();
-        if (!val) return;
-        const isUrl = /^(http(s)?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w- ./?%&=]*)?$/i.test(val);
-        if (isUrl) {
-            if (!/^http(s)?:\/\//i.test(val)) val = "https://" + val;
-            location.href = val;
-        } else {
-            const engine = engines[currentEngine];
-            let searchUrl = engine.url;
-            if (searchUrl.includes("%s")) {
-                searchUrl = searchUrl.replace("%s", encodeURIComponent(val));
-            } else {
-                searchUrl += encodeURIComponent(val);
-            }
-            location.href = searchUrl;
-        }
-    }
-}
-
 // Engine Selector Toggle
 selectedEngineIcon.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -713,11 +1009,47 @@ if (showShortcutNamesCheckbox) {
     });
 }
 
+// ==================== Shortcut Open Target ====================
+function _syncShortcutTargetUI() {
+    const target = localStorage.getItem(SHORTCUT_TARGET_KEY) || 'current';
+    if (shortcutOpenCurrent) shortcutOpenCurrent.checked = target !== 'newtab';
+    if (shortcutOpenNewTab) shortcutOpenNewTab.checked = target === 'newtab';
+}
+
+_syncShortcutTargetUI();
+
+if (shortcutOpenCurrent) {
+    shortcutOpenCurrent.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            localStorage.setItem(SHORTCUT_TARGET_KEY, 'current');
+            renderShortcutsGrid();
+        }
+    });
+}
+
+if (shortcutOpenNewTab) {
+    shortcutOpenNewTab.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            localStorage.setItem(SHORTCUT_TARGET_KEY, 'newtab');
+            renderShortcutsGrid();
+        }
+    });
+}
+
 // ==================== Shortcut Drag & Drop Sorting ====================
 let draggedShortcutIndex = null;
+let folderOverlay = null;
+let folderOverlayContent = null;
+let folderOverlayInput = null;
+let currentFolderIndex = null;
+let mergeHoverTimer = null;
+let mergeAllowedIndex = null;
+let currentMergeTargetIndex = null;
 
 function handleShortcutDragStart(e) {
     draggedShortcutIndex = parseInt(e.currentTarget.dataset.index);
+    currentMergeTargetIndex = null;
+    mergeAllowedIndex = null;
     e.currentTarget.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', draggedShortcutIndex);
@@ -739,11 +1071,15 @@ function handleShortcutDragEnd(e) {
     // Remove drag-over class from all items
     document.querySelectorAll('.shortcut-item').forEach(item => {
         item.classList.remove('drag-over');
+        item.classList.remove('drag-over-merge');
     });
     if (shortcutsGrid) {
         shortcutsGrid.classList.remove('dragging-active');
     }
+    if (mergeHoverTimer) clearTimeout(mergeHoverTimer);
     draggedShortcutIndex = null;
+    currentMergeTargetIndex = null;
+    mergeAllowedIndex = null;
 }
 
 function handleShortcutDragOver(e) {
@@ -755,31 +1091,236 @@ function handleShortcutDragOver(e) {
     
     if (draggedShortcutIndex !== null && targetIndex !== draggedShortcutIndex) {
         target.classList.add('drag-over');
+
+        if (!FOLDER_FEATURE_ENABLED) return;
+
+        // Only start timer if we are new to this target
+        if (currentMergeTargetIndex !== targetIndex) {
+            // Clean up previous target if any
+            if (mergeHoverTimer) clearTimeout(mergeHoverTimer);
+            if (currentMergeTargetIndex !== null) {
+                const oldEl = shortcutsGrid.querySelector(`.shortcut-item[data-index="${currentMergeTargetIndex}"]`);
+                if (oldEl) oldEl.classList.remove('drag-over-merge');
+            }
+            
+            currentMergeTargetIndex = targetIndex;
+            mergeAllowedIndex = null;
+
+            mergeHoverTimer = setTimeout(() => {
+                // Double check if we are still on the same target
+                if (currentMergeTargetIndex === targetIndex) {
+                    mergeAllowedIndex = targetIndex;
+                    target.classList.add('drag-over-merge');
+                }
+            }, 800); // 0.8s hover to allow merge
+        }
     }
 }
 
 function handleShortcutDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
+    const target = e.currentTarget;
+    // Ignore leave events triggered by children
+    if (target.contains(e.relatedTarget)) return;
+
+    target.classList.remove('drag-over');
+    target.classList.remove('drag-over-merge');
+    
+    if (!FOLDER_FEATURE_ENABLED) return;
+
+    const targetIndex = parseInt(target.dataset.index);
+    if (currentMergeTargetIndex === targetIndex) {
+        if (mergeHoverTimer) clearTimeout(mergeHoverTimer);
+        currentMergeTargetIndex = null;
+        mergeAllowedIndex = null;
+    }
 }
 
 function handleShortcutDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-merge');
     if (shortcutsGrid) {
         shortcutsGrid.classList.remove('dragging-active');
     }
+    if (mergeHoverTimer) clearTimeout(mergeHoverTimer);
     
     const targetIndex = parseInt(e.currentTarget.dataset.index);
+    currentMergeTargetIndex = null;
     
-    if (draggedShortcutIndex !== null && targetIndex !== draggedShortcutIndex) {
-        // Reorder shortcuts array
-        const draggedItem = shortcuts[draggedShortcutIndex];
+    if (draggedShortcutIndex === null || targetIndex === draggedShortcutIndex) return;
+
+    const draggedItem = shortcuts[draggedShortcutIndex];
+    const targetItem = shortcuts[targetIndex];
+
+    // If drop target is a folder, push into folder (only when feature enabled)
+    if (FOLDER_FEATURE_ENABLED && _isFolder(targetItem)) {
+        shortcuts.splice(draggedShortcutIndex, 1);
+        _ensureShortcutId(draggedItem);
+        targetItem.items.push(draggedItem);
+        saveShortcuts();
+        return;
+    }
+
+    const allowMerge = FOLDER_FEATURE_ENABLED && mergeAllowedIndex === targetIndex;
+
+    // If dragging a folder onto item, just reorder
+    if (_isFolder(draggedItem) && !_isFolder(targetItem)) {
         shortcuts.splice(draggedShortcutIndex, 1);
         shortcuts.splice(targetIndex, 0, draggedItem);
-        
-        // Save and re-render
         saveShortcuts();
+            return;
+        }
+
+    // Create folder when item dropped onto another item
+    if (!_isFolder(draggedItem) && !_isFolder(targetItem) && allowMerge) {
+        const higher = Math.max(draggedShortcutIndex, targetIndex);
+        const lower = Math.min(draggedShortcutIndex, targetIndex);
+        const first = shortcuts[lower];
+        const second = shortcuts[higher];
+        shortcuts.splice(higher, 1);
+        shortcuts.splice(lower, 1);
+        _ensureShortcutId(first);
+        _ensureShortcutId(second);
+        const folder = {
+            type: 'folder',
+            name: _createFolderName(),
+            items: [first, second]
+        };
+        shortcuts.splice(lower, 0, folder);
+        saveShortcuts();
+        return;
     }
+
+    // Default reorder
+    shortcuts.splice(draggedShortcutIndex, 1);
+    shortcuts.splice(targetIndex, 0, draggedItem);
+    saveShortcuts();
+}
+
+// ==================== Folder Overlay / Management ====================
+
+function _ensureFolderOverlay() {
+    if (folderOverlay) return;
+    folderOverlay = document.createElement('div');
+    folderOverlay.className = 'folder-overlay';
+    folderOverlay.innerHTML = `
+        <div class="folder-bubble">
+            <div class="folder-bubble-header">
+                <input id="folderOverlayInput" class="folder-bubble-input" />
+                <button id="folderOverlayClose" class="folder-bubble-close">&times;</button>
+            </div>
+            <div id="folderOverlayContent" class="folder-bubble-content"></div>
+        </div>
+    `;
+    document.body.appendChild(folderOverlay);
+    folderOverlayContent = folderOverlay.querySelector('#folderOverlayContent');
+    folderOverlayInput = folderOverlay.querySelector('#folderOverlayInput');
+    const closeBtn = folderOverlay.querySelector('#folderOverlayClose');
+    closeBtn.addEventListener('click', closeFolderOverlay);
+    folderOverlay.addEventListener('click', (e) => {
+        if (e.target === folderOverlay) closeFolderOverlay();
+    });
+}
+
+function _positionFolderOverlay(targetEl) {
+    if (!folderOverlay || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const bubble = folderOverlay.querySelector('.folder-bubble');
+    const bubbleRect = bubble.getBoundingClientRect();
+    const top = rect.bottom + 12;
+    let left = rect.left + rect.width / 2 - bubbleRect.width / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - bubbleRect.width - 12));
+    folderOverlay.style.display = 'flex';
+    bubble.style.top = `${top}px`;
+    bubble.style.left = `${left}px`;
+}
+
+function openFolderOverlay(index) {
+    currentFolderIndex = index;
+    const folder = shortcuts[index];
+    if (!_isFolder(folder)) return;
+    _ensureFolderOverlay();
+    folderOverlayInput.value = folder.name || '';
+    folderOverlayContent.innerHTML = '';
+    folder.items.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'folder-item-row';
+        const left = document.createElement('div');
+        left.className = 'folder-item-info';
+        const img = document.createElement('img');
+        const cacheKey = `shortcut_${item.url || item.id}`;
+        img.src = getIconSrc(cacheKey, item.icon || '', item.url);
+        img.onerror = () => {
+            img.style.display = 'none';
+            const fallback = document.createElement('span');
+            fallback.textContent = (item.name || '?').charAt(0).toUpperCase();
+            fallback.className = 'folder-item-fallback';
+            left.appendChild(fallback);
+        };
+        img.width = 20;
+        img.height = 20;
+        left.appendChild(img);
+        const text = document.createElement('span');
+        text.textContent = item.name;
+        left.appendChild(text);
+
+        const actions = document.createElement('div');
+        actions.className = 'folder-item-actions';
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => {
+            folder.items.splice(idx, 1);
+            if (folder.items.length === 1) {
+                const lone = folder.items[0];
+                shortcuts.splice(index, 1, lone);
+            } else if (folder.items.length === 0) {
+                shortcuts.splice(index, 1);
+            }
+            saveShortcuts();
+            openFolderOverlay(index);
+        });
+
+        const extractBtn = document.createElement('button');
+        extractBtn.textContent = 'Extract';
+        extractBtn.addEventListener('click', () => {
+            const extracted = folder.items.splice(idx, 1)[0];
+            shortcuts.splice(index + 1, 0, extracted);
+            if (folder.items.length === 1) {
+                const lone = folder.items[0];
+                shortcuts.splice(index, 1, lone);
+            } else if (folder.items.length === 0) {
+                shortcuts.splice(index, 1);
+            }
+            saveShortcuts();
+            openFolderOverlay(index);
+        });
+
+        actions.appendChild(removeBtn);
+        actions.appendChild(extractBtn);
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        folderOverlayContent.appendChild(row);
+    });
+
+    folderOverlayInput.onchange = () => {
+        const folder = shortcuts[currentFolderIndex];
+        if (_isFolder(folder)) {
+            folder.name = folderOverlayInput.value.trim() || folder.name;
+        saveShortcuts();
+        }
+    };
+
+    _positionFolderOverlay(shortcutsGrid.querySelector(`.shortcut-item[data-index="${index}"]`));
+    document.body.classList.add('modal-open');
+}
+
+function closeFolderOverlay() {
+    if (folderOverlay) {
+        folderOverlay.style.display = 'none';
+    }
+    currentFolderIndex = null;
+    document.body.classList.remove('modal-open');
 }
 
 // ==================== Settings List Drag & Drop ====================
@@ -865,29 +1406,35 @@ function handleListDrop(e) {
 
 // Init
 async function init() {
+    const safeInit = async (label, fn) => {
+        try {
+            await fn();
+        } catch (e) {
+            console.warn(`Failed to initialize ${label}:`, e);
+        }
+    };
+
     // Initialize i18n module first
-    if (typeof I18n !== 'undefined') {
-        I18n.init();
-    }
+    await safeInit('i18n', () => {
+        if (typeof I18n !== 'undefined' && I18n.init) {
+            I18n.init();
+        }
+    });
 
     // Initialize Accessibility Manager (applies theme/font settings early)
     // Note: Don't sync UI yet, custom selects aren't created
-    if (typeof AccessibilityManager !== 'undefined') {
-        try {
+    await safeInit('AccessibilityManager', () => {
+        if (typeof AccessibilityManager !== 'undefined' && AccessibilityManager.init) {
             AccessibilityManager.init();
-        } catch (e) {
-            console.warn('Failed to initialize AccessibilityManager:', e);
         }
-    }
+    });
 
     // Initialize Wallpaper Manager
-    if (typeof WallpaperManager !== 'undefined') {
-        try {
-            await WallpaperManager.init();
-        } catch (e) {
-            console.warn('Failed to initialize WallpaperManager:', e);
+    await safeInit('WallpaperManager', async () => {
+        if (typeof WallpaperManager !== 'undefined' && WallpaperManager.init) {
+            return WallpaperManager.init();
         }
-    }
+    });
 
     // Ensure shortcuts exist (Double check)
     if (!shortcuts || shortcuts.length === 0) {
@@ -901,20 +1448,32 @@ async function init() {
     }
     
     // Initialize custom selects after i18n is applied
-    if (typeof CustomSelect !== 'undefined') {
-        CustomSelect.init('#tab-accessibility select');
-    }
+    await safeInit('CustomSelect', () => {
+        if (typeof CustomSelect !== 'undefined' && CustomSelect.init) {
+            CustomSelect.init('#tab-accessibility select');
+        }
+    });
     
     // Now sync accessibility UI after custom selects exist
-    if (typeof AccessibilityManager !== 'undefined' && AccessibilityManager.syncUI) {
-        AccessibilityManager.syncUI();
-    }
+    await safeInit('AccessibilityManager.syncUI', () => {
+        if (typeof AccessibilityManager !== 'undefined' && AccessibilityManager.syncUI) {
+            AccessibilityManager.syncUI();
+        }
+    });
     
     updateUI();
     renderEnginesList();
     renderShortcutsList();
     renderShortcutsGrid();
-    searchInput.addEventListener("keydown", handleSearch);
+    if (window.SearchBar && typeof window.SearchBar.init === 'function') {
+        window.SearchBar.init({
+            searchInputId: 'search',
+            actionBtnId: 'searchActionBtn',
+            actionLabelId: 'searchActionLabel',
+            getEngines: () => engines,
+            getCurrentEngine: () => currentEngine
+        });
+    }
     
     // Initialize settings list drag & drop
     initSettingsListDragDrop();

@@ -2,6 +2,9 @@
     "searchPlaceholder": {
         "message": "搜索..."
     },
+    "searchActionLabel": {
+        "message": "搜索"
+    },
     "appTitle": {
         "message": "GenresFox"
     },
@@ -49,6 +52,12 @@
     },
     "resetShortcuts": {
         "message": "重置快捷方式"
+    },
+    "shortcutOpenCurrent": {
+        "message": "当前页面打开"
+    },
+    "shortcutOpenNewTab": {
+        "message": "新标签页打开"
     },
     "searchBoxSettings": {
         "message": "搜索框设置"
@@ -199,5 +208,17 @@
     },
     "resetToBing": {
         "message": "已切换到 Bing 每日壁纸"
+    },
+    "deleteShortcutConfirm": {
+        "message": "确认删除快捷方式“%s”？"
+    },
+    "searchErrorUnsafeUrl": {
+        "message": "无法访问此网址，可能不安全。"
+    },
+    "searchErrorNavigationFailed": {
+        "message": "链接打开失败。"
+    },
+    "searchErrorNoEngine": {
+        "message": "没有可用的搜索引擎。"
     }
 }

@@ -79,14 +79,13 @@ const ImageProcessor = (function() {
             // Use file name + size + last modified as key
             const keyData = `${file.name}_${file.size}_${file.lastModified}`;
             
-            // Simple hash function
+            // Simple hash function (stable 32-bit unsigned)
             let hash = 0;
             for (let i = 0; i < keyData.length; i++) {
                 const char = keyData.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
+                hash = (((hash << 5) - hash) + char) | 0; // force 32-bit
             }
-            return `img_${Math.abs(hash).toString(36)}`;
+            return `img_${(hash >>> 0).toString(36)}`;
         },
         
         /**
@@ -171,39 +170,57 @@ const ImageProcessor = (function() {
             _state.worker.onmessage = (e) => {
                 const { type, id, result, error, progress } = e.data;
                 
-                switch (type) {
-                    case 'loaded':
-                        console.log('Image Worker loaded');
-                        break;
-                        
-                    case 'ready':
-                        _state.workerReady = true;
-                        console.log('Image Worker ready');
-                        break;
-                        
-                    case 'progress':
-                        const progressCb = _state.workerCallbacks.get(id);
-                        if (progressCb?.onProgress) {
-                            progressCb.onProgress(progress);
+                const deliver = () => {
+                    switch (type) {
+                        case 'loaded':
+                            console.log('Image Worker loaded');
+                            return true;
+                            
+                        case 'ready':
+                            _state.workerReady = true;
+                            console.log('Image Worker ready');
+                            return true;
+                            
+                        case 'progress': {
+                            const progressCb = _state.workerCallbacks.get(id);
+                            if (progressCb?.onProgress) {
+                                progressCb.onProgress(progress);
+                                return true;
+                            }
+                            return false;
                         }
-                        break;
                         
-                    case 'complete':
-                    case 'previewComplete':
-                        const cb = _state.workerCallbacks.get(id);
-                        if (cb?.resolve) {
-                            cb.resolve(result);
+                        case 'complete':
+                        case 'previewComplete': {
+                            const cb = _state.workerCallbacks.get(id);
+                            if (cb?.resolve) {
+                                cb.resolve(result);
+                                _state.workerCallbacks.delete(id);
+                                return true;
+                            }
+                            return false;
                         }
-                        _state.workerCallbacks.delete(id);
-                        break;
                         
-                    case 'error':
-                        const errCb = _state.workerCallbacks.get(id);
-                        if (errCb?.reject) {
-                            errCb.reject(new Error(error));
+                        case 'error': {
+                            const errCb = _state.workerCallbacks.get(id);
+                            if (errCb?.reject) {
+                                errCb.reject(new Error(error));
+                                _state.workerCallbacks.delete(id);
+                                return true;
+                            }
+                            return false;
                         }
-                        _state.workerCallbacks.delete(id);
-                        break;
+                    }
+                    return true;
+                };
+
+                if (!deliver()) {
+                    // If message arrives before callback registration, retry in next microtask
+                    queueMicrotask(() => {
+                        if (!deliver()) {
+                            console.warn(`Worker message without callback (id=${id}, type=${type})`);
+                        }
+                    });
                 }
             };
             
@@ -399,6 +416,14 @@ const ImageProcessor = (function() {
      */
     async function _processInChunks(img, targetWidth, targetHeight, onProgress) {
         const { canvas: finalCanvas, ctx: finalCtx } = _createCanvas(targetWidth, targetHeight);
+
+        // Reuse a single temp canvas to avoid repeated allocations
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d', {
+            alpha: false,
+            desynchronized: true,
+            willReadFrequently: false
+        });
         
         const scaleX = targetWidth / img.width;
         const scaleY = targetHeight / img.height;
@@ -422,15 +447,16 @@ const ImageProcessor = (function() {
                 const dh = Math.max(1, Math.round(sh * scaleY));
                 
                 if (dw >= 1 && dh >= 1) {
-                    const { canvas: tempCanvas, ctx: tempCtx } = _createCanvas(dw, dh);
+                    tempCanvas.width = dw;
+                    tempCanvas.height = dh;
+                    tempCtx.imageSmoothingEnabled = true;
+                    tempCtx.imageSmoothingQuality = 'high';
                     try {
                         tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
                         finalCtx.drawImage(tempCanvas, dx, dy);
                     } catch (e) {
                         console.warn(`Chunk (${cx}, ${cy}) failed:`, e);
                     }
-                    tempCanvas.width = 0;
-                    tempCanvas.height = 0;
                 }
                 
                 processedChunks++;
@@ -441,6 +467,10 @@ const ImageProcessor = (function() {
             }
         }
         
+        // Cleanup temp canvas
+        tempCanvas.width = 0;
+        tempCanvas.height = 0;
+
         return finalCanvas;
     }
 
@@ -887,3 +917,10 @@ const ImageProcessor = (function() {
 if (typeof window !== 'undefined') {
     window.ImageProcessor = ImageProcessor;
 }
+
+/**
+ * Give a civilisation to the years, not years to a civilisation. 
+ * 给岁月以文明，而不是给文明以岁月。
+ * — From "The Three-Body Problem: Death's End".
+ * — 出自《三体3：死神永生》。
+*/

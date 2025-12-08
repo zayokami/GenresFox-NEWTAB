@@ -9,6 +9,7 @@
     <title data-i18n="appTitle">GenresFox</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="accessibility.css">
+    <link rel="stylesheet" href="search.css">
 </head>
 
 <body>
@@ -26,6 +27,14 @@
                 </div>
                 <input id="search" type="text" data-i18n-placeholder="searchPlaceholder" placeholder="Search..."
                     autocomplete="off" autofocus />
+                    <button id="searchActionBtn" class="search-action-btn" type="button" aria-label="Search" data-i18n-aria-label="searchActionLabel">
+                        <span class="search-action-icon">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="currentColor" d="M15.5 14h-.79l-.28-.27c.98-1.14 1.57-2.62 1.57-4.23 0-3.59-2.91-6.5-6.5-6.5S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                            </svg>
+                        </span>
+                        <span class="search-action-label" id="searchActionLabel" data-i18n="searchActionLabel">Search</span>
+                    </button>
             </div>
         </div>
 
@@ -170,6 +179,16 @@
                                 <input type="checkbox" id="showShortcutNames" checked>
                                 <span data-i18n="showShortcutNames">Show shortcut names</span>
                             </label>
+                            <div class="radio-group">
+                                <label class="checkbox-label">
+                                    <input type="radio" name="shortcutOpenTarget" id="shortcutOpenCurrent" value="current" checked>
+                                    <span data-i18n="shortcutOpenCurrent">Open in current tab</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="radio" name="shortcutOpenTarget" id="shortcutOpenNewTab" value="newtab">
+                                    <span data-i18n="shortcutOpenNewTab">Open in new tab</span>
+                                </label>
+                            </div>
                         </div>
                         <p class="setting-hint" data-i18n="shortcutDragHint">💡 Drag shortcuts to reorder them</p>
                         <div id="shortcutsList" class="list-group sortable-list"></div>
@@ -275,7 +294,7 @@
                 <div class="tab-content" id="tab-about">
                     <div class="about-info">
                         <h3>GenresFox</h3>
-                        <p>Version 0.3.7</p>
+                        <p>Version 0.3.8</p>
                         <p data-i18n="aboutDescription">A fully open-source, extremely clean, and highly customizable new tab page extension.</p>
                         <p>&copy; 2025 zayoka. All rights reserved.</p>
                         <br>
@@ -303,6 +322,7 @@
     <script src="image-processor.js"></script>
     <script src="wallpaper.js"></script>
     <script src="accessibility.js"></script>
+    <script src="search.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
@@ -312,3 +332,5 @@
  Pour toi, je ne suis qu'un renard semblable à cent mille autres renards. 
  Mais, si tu m'apprivoises, nous aurons besoin l'un de l'autre. Tu seras pour moi unique au monde. 
  Je serai pour toi unique au monde.-->
+
+<!-- C'est le temps que tu as perdu pour ta rose qui fait ta rose si importante. -->

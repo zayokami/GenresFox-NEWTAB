@@ -2,6 +2,9 @@
     "searchPlaceholder": {
         "message": "Search..."
     },
+    "searchActionLabel": {
+        "message": "Search"
+    },
     "appTitle": {
         "message": "GenresFox"
     },
@@ -49,6 +52,12 @@
     },
     "resetShortcuts": {
         "message": "Reset Shortcuts"
+    },
+    "shortcutOpenCurrent": {
+        "message": "Open in current tab"
+    },
+    "shortcutOpenNewTab": {
+        "message": "Open in new tab"
     },
     "searchBoxSettings": {
         "message": "Search Box Settings"
@@ -199,5 +208,17 @@
     },
     "resetToBing": {
         "message": "Switched to Bing Daily Wallpaper"
+    },
+    "deleteShortcutConfirm": {
+        "message": "Delete shortcut \"%s\"?"
+    },
+    "searchErrorUnsafeUrl": {
+        "message": "This URL may be unsafe."
+    },
+    "searchErrorNavigationFailed": {
+        "message": "Failed to open the link."
+    },
+    "searchErrorNoEngine": {
+        "message": "No available search engine."
     }
 }

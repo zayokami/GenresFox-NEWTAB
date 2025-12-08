@@ -2,6 +2,9 @@
     "searchPlaceholder": {
         "message": "搜尋..."
     },
+    "searchActionLabel": {
+        "message": "搜尋"
+    },
     "appTitle": {
         "message": "GenresFox"
     },
@@ -49,6 +52,12 @@
     },
     "resetShortcuts": {
         "message": "重設捷徑"
+    },
+    "shortcutOpenCurrent": {
+        "message": "在當前頁面開啟"
+    },
+    "shortcutOpenNewTab": {
+        "message": "在新分頁開啟"
     },
     "searchBoxSettings": {
         "message": "搜尋框設定"
@@ -199,6 +208,18 @@
     },
     "resetToBing": {
         "message": "已切換到 Bing 每日桌布"
+    },
+    "deleteShortcutConfirm": {
+        "message": "確認刪除捷徑「%s」？"
+    },
+    "searchErrorUnsafeUrl": {
+        "message": "無法訪問此網址，可能不安全。"
+    },
+    "searchErrorNavigationFailed": {
+        "message": "連結開啟失敗。"
+    },
+    "searchErrorNoEngine": {
+        "message": "沒有可用的搜尋引擎。"
     }
 }
 

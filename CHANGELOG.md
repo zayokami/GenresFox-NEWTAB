@@ -5,6 +5,23 @@ All notable changes to GenresFox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2025-12-08
+
+### Added
+- Shortcut open-target preference (current tab / new tab) with i18n coverage
+- Icon loading robustness: `no-referrer`, lazy/async decode, unified fallback
+- UI polish for shortcut option controls (radio/checkbox styling)
+- Search icon added; improved shortcut name hover reveal when names are hidden
+- Safer search-box handling: stricter URL detection to avoid false URL nav
+
+### Changed
+- Wallpaper init no longer blocks first paint; Bing fetch deferred to idle to reduce daily-refresh stutter
+- Shortcut hover cards: increased opacity for better contrast
+
+### Fixed
+- Shortcut icons intermittently blank due to hotlink issues (fallback + safer loading)
+- Daily Bing refresh causing brief freeze (async wallpaper load)
+
 ## [0.3.7] - 2025-12-06
 
 ### Added

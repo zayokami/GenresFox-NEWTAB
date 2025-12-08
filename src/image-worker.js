@@ -15,7 +15,17 @@ let CONFIG = {
     CHUNK_SIZE: 2048,
     OUTPUT_FORMAT: 'image/webp',
     FALLBACK_FORMAT: 'image/jpeg',
-    TARGET_OUTPUT_SIZE: 5 * 1024 * 1024
+    TARGET_OUTPUT_SIZE: 5 * 1024 * 1024,
+    WASM_URL: null,
+    WASM_ENABLED: false
+};
+
+// WASM state
+const WASM = {
+    instance: null,
+    exports: null,
+    ready: false,
+    allocPtr: 0
 };
 
 /**
@@ -45,6 +55,14 @@ function calculateDimensions(width, height, maxWidth, maxHeight, screenWidth, sc
 async function processImageData(imageData, targetWidth, targetHeight, onProgress) {
     const { width: srcWidth, height: srcHeight } = imageData;
     
+    // Prefer WASM path if enabled and ready
+    if (CONFIG.WASM_ENABLED && WASM.ready) {
+        const wasmCanvas = await processImageDataWithWasm(imageData, targetWidth, targetHeight, onProgress);
+        if (wasmCanvas) {
+            return wasmCanvas;
+        }
+    }
+
     // Create OffscreenCanvas for processing
     const canvas = new OffscreenCanvas(targetWidth, targetHeight);
     const ctx = canvas.getContext('2d', {
@@ -136,6 +154,97 @@ async function optimizeBlobSize(canvas, targetSize, format) {
 }
 
 /**
+ * Load WASM module (if provided)
+ */
+async function loadWasm(url) {
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Failed to fetch WASM: ${resp.status}`);
+        const wasmBinary = await resp.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(wasmBinary, {});
+        if (!instance?.exports) throw new Error('WASM exports missing');
+        WASM.instance = instance;
+        WASM.exports = instance.exports;
+        WASM.ready = true;
+        WASM.allocPtr = 0;
+        console.log('[Worker] WASM loaded');
+    } catch (err) {
+        console.warn('[Worker] WASM load failed:', err);
+        WASM.instance = null;
+        WASM.exports = null;
+        WASM.ready = false;
+    }
+}
+
+/**
+ * Simple bump allocator on WASM memory
+ */
+function wasmAlloc(size) {
+    const memory = WASM.exports?.memory;
+    if (!memory) return null;
+    const pageSize = 64 * 1024;
+    const alignedSize = (size + 7) & ~7;
+    let needed = WASM.allocPtr + alignedSize;
+    const current = memory.buffer.byteLength;
+    if (needed > current) {
+        const growPages = Math.ceil((needed - current) / pageSize);
+        try {
+            memory.grow(growPages);
+        } catch (e) {
+            return null;
+        }
+    }
+    const ptr = WASM.allocPtr;
+    WASM.allocPtr += alignedSize;
+    return ptr;
+}
+
+/**
+ * Process image data via WASM (expects export resize_rgba)
+ * resize_rgba(srcPtr, srcW, srcH, dstPtr, dstW, dstH)
+ */
+async function processImageDataWithWasm(imageData, targetWidth, targetHeight, onProgress) {
+    const exports = WASM.exports;
+    if (!exports || typeof exports.resize_rgba !== 'function' || !exports.memory) {
+        return null;
+    }
+
+    try {
+        WASM.allocPtr = 0; // reset bump pointer per call
+        const srcSize = imageData.width * imageData.height * 4;
+        const dstSize = targetWidth * targetHeight * 4;
+
+        const srcPtr = wasmAlloc(srcSize);
+        const dstPtr = wasmAlloc(dstSize);
+        if (srcPtr === null || dstPtr === null) {
+            return null;
+        }
+
+        const memoryU8 = new Uint8Array(exports.memory.buffer);
+        memoryU8.set(imageData.data, srcPtr);
+
+        exports.resize_rgba(srcPtr, imageData.width, imageData.height, dstPtr, targetWidth, targetHeight);
+
+        if (onProgress) onProgress(70);
+
+        const dstView = memoryU8.subarray(dstPtr, dstPtr + dstSize);
+        const outImageData = new ImageData(
+            new Uint8ClampedArray(dstView.slice().buffer),
+            targetWidth,
+            targetHeight
+        );
+
+        const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(outImageData, 0, 0);
+        return canvas;
+    } catch (e) {
+        console.warn('[Worker] WASM processing failed, fallback to canvas:', e);
+        return null;
+    }
+}
+
+/**
  * Main message handler
  */
 ctx.onmessage = async function(e) {
@@ -147,6 +256,9 @@ ctx.onmessage = async function(e) {
                 // Initialize with config from main thread
                 if (data.config) {
                     CONFIG = { ...CONFIG, ...data.config };
+                }
+                if (CONFIG.WASM_ENABLED && CONFIG.WASM_URL) {
+                    loadWasm(CONFIG.WASM_URL);
                 }
                 ctx.postMessage({ type: 'ready', id });
                 break;
@@ -263,3 +375,7 @@ ctx.onmessage = async function(e) {
 // Signal that worker is loaded
 ctx.postMessage({ type: 'loaded' });
 
+/** 
+ * Violence is the last refuge of the incompetent. 
+ * — From Isaac Asimov's novel, "Foundation".
+*/
