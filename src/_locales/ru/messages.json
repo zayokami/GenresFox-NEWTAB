@@ -1,0 +1,224 @@
+{
+    "searchPlaceholder": {
+        "message": "Suchen..."
+    },
+    "searchActionLabel": {
+        "message": "Suchen"
+    },
+    "appTitle": {
+        "message": "GenresFox"
+    },
+    "settingsTitle": {
+        "message": "Einstellungen"
+    },
+    "tabWallpaper": {
+        "message": "Hintergrundbild"
+    },
+    "tabSearch": {
+        "message": "Suche und Schnellzugriffe"
+    },
+    "tabAccessibility": {
+        "message": "Barrierefreiheit"
+    },
+    "tabAbout": {
+        "message": "Über"
+    },
+    "uploadWallpaper": {
+        "message": "Hintergrundbild hochladen"
+    },
+    "resetWallpaper": {
+        "message": "Standard wiederherstellen"
+    },
+    "customEngines": {
+        "message": "Benutzerdefinierte Suchmaschinen"
+    },
+    "shortcuts": {
+        "message": "Schnellzugriffe"
+    },
+    "add": {
+        "message": "Hinzufügen"
+    },
+    "dragDropText": {
+        "message": "Ziehen Sie das Bild hierher oder klicken Sie zum Hochladen"
+    },
+    "wallpaperSettings": {
+        "message": "Hintergrundbild-Einstellungen"
+    },
+    "blurAmount": {
+        "message": "Unschärfegrad"
+    },
+    "vignetteAmount": {
+        "message": "Vignettierungsgrad"
+    },
+    "resetShortcuts": {
+        "message": "Schnellzugriffe zurücksetzen"
+    },
+    "shortcutOpenCurrent": {
+        "message": "In aktueller Seite öffnen"
+    },
+    "shortcutOpenNewTab": {
+        "message": "In neuem Tab öffnen"
+    },
+    "searchBoxSettings": {
+        "message": "Suchfeld-Einstellungen"
+    },
+    "searchBoxWidth": {
+        "message": "Breite"
+    },
+    "searchBoxScale": {
+        "message": "Größe"
+    },
+    "searchBoxPosition": {
+        "message": "Vertikale Position"
+    },
+    "searchBoxRadius": {
+        "message": "Eckenradius"
+    },
+    "searchBoxShadow": {
+        "message": "Schattenintensität"
+    },
+    "showShortcutNames": {
+        "message": "Namen der Schnellzugriffe anzeigen"
+    },
+    "shortcutDragHint": {
+        "message": "💡 Ziehen Sie die Schnellzugriffe, um die Reihenfolge anzupassen"
+    },
+    "livePreview": {
+        "message": "Live-Vorschau"
+    },
+    "a11yDisplay": {
+        "message": "Anzeige"
+    },
+    "a11yTheme": {
+        "message": "Thema"
+    },
+    "a11yThemeStandard": {
+        "message": "Standard"
+    },
+    "a11yThemeHCDark": {
+        "message": "Hoher Kontrast (Dunkel)"
+    },
+    "a11yThemeHCLight": {
+        "message": "Hoher Kontrast (Hell)"
+    },
+    "a11yThemeYellowBlack": {
+        "message": "Gelb auf Schwarz"
+    },
+    "a11yFontSize": {
+        "message": "Schriftgröße"
+    },
+    "a11yFontFamily": {
+        "message": "Schriftart"
+    },
+    "a11yFontDefault": {
+        "message": "Standard"
+    },
+    "a11yFontSans": {
+        "message": "Serifenlos"
+    },
+    "a11yFontSerif": {
+        "message": "Serifenhaltig"
+    },
+    "a11yFontDyslexic": {
+        "message": "Dyslexiefreundlich"
+    },
+    "a11yLineSpacing": {
+        "message": "Zeilenabstand"
+    },
+    "a11ySpacingNormal": {
+        "message": "Normal"
+    },
+    "a11ySpacingRelaxed": {
+        "message": "Lockerer"
+    },
+    "a11ySpacingVeryRelaxed": {
+        "message": "Sehr locker"
+    },
+    "a11yMotion": {
+        "message": "Animationen"
+    },
+    "a11yAnimations": {
+        "message": "Animationseffekte"
+    },
+    "a11yMotionFull": {
+        "message": "Vollständig"
+    },
+    "a11yMotionReduced": {
+        "message": "Reduziert"
+    },
+    "a11yMotionNone": {
+        "message": "Keine"
+    },
+    "a11yFocus": {
+        "message": "Fokus"
+    },
+    "a11yFocusIndicator": {
+        "message": "Fokusindikator"
+    },
+    "a11yFocusStandard": {
+        "message": "Standard"
+    },
+    "a11yFocusEnhanced": {
+        "message": "Erweitert"
+    },
+    "a11yFocusLarge": {
+        "message": "Groß"
+    },
+    "a11yReset": {
+        "message": "Einstellungen auf Standard zurücksetzen"
+    },
+    "aboutDescription": {
+        "message": "Eine vollständig quelloffene, minimalistische und hoch anpassbare Erweiterung für neue Registerkarten."
+    },
+    "aboutOpenSource": {
+        "message": "GenresFox ist ein quelloffenes Projekt – Sie finden den Quellcode auf GitHub!"
+    },
+    "viewOnGitHub": {
+        "message": "Auf GitHub anzeigen"
+    },
+    "creditsTitle": {
+        "message": "Danksagungen"
+    },
+    "creditsBingWallpaper": {
+        "message": "Standard-Hintergrundbilder werden von Bing Tagesbilder bereitgestellt."
+    },
+    "processingImage": {
+        "message": "Bild wird verarbeitet..."
+    },
+    "processingLoading": {
+        "message": "Bild wird geladen..."
+    },
+    "processingOptimizing": {
+        "message": "Optimiert wird..."
+    },
+    "processingCompressing": {
+        "message": "Komprimiert wird..."
+    },
+    "processingSaving": {
+        "message": "Wird gespeichert..."
+    },
+    "processingStarting": {
+        "message": "Verarbeitung startet..."
+    },
+    "errorImageTooLarge": {
+        "message": "Bilddatei ist zu groß (max. 50 MB)"
+    },
+    "errorResolutionTooHigh": {
+        "message": "Bildauflösung ist zu hoch (max. 80 Megapixel)"
+    },
+    "resetToBing": {
+        "message": "Wechsel zu Bing Tagesbild abgeschlossen"
+    },
+    "deleteShortcutConfirm": {
+        "message": "Sind Sie sicher, dass Sie den Schnellzugriff „%s“ löschen möchten?"
+    },
+    "searchErrorUnsafeUrl": {
+        "message": "Zugriff auf diese URL nicht möglich – möglicherweise unsicher."
+    },
+    "searchErrorNavigationFailed": {
+        "message": "Link konnte nicht geöffnet werden."
+    },
+    "searchErrorNoEngine": {
+        "message": "Keine Suchmaschinen verfügbar."
+    }
+}
