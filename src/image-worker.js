@@ -287,7 +287,7 @@ ctx.onmessage = async function(e) {
                 let canvas;
 
                 if (alreadyScaled) {
-                    // ImageData already at target dimensions; write directly to output (无需再缩放)
+                    // ImageData is already at target dimensions; write directly to output (no further scaling required)
                     targetWidth = imageData.width;
                     targetHeight = imageData.height;
                     canvas = new OffscreenCanvas(targetWidth, targetHeight);
