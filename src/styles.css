@@ -331,6 +331,9 @@ body::after {
 #search::placeholder {
     color: rgba(255, 255, 255, 0.6);
     text-shadow: none;
+    font-size: 0.95rem;
+    transform: translate(0.5%, 10%);
+    display: inline-block;
 }
 
 .fade-in {

@@ -65,7 +65,9 @@ const ImageProcessor = (function() {
         workerReadyCount: 0,
         workerCallbacks: new Map(),
         callbackId: 0,
-        nextWorkerIndex: 0
+        nextWorkerIndex: 0,
+        workerQueue: [],
+        maxWorkerConcurrent: 2
     };
 
     // ==================== Cache ====================
@@ -166,7 +168,9 @@ const ImageProcessor = (function() {
         if (!_state.supportsOffscreenCanvas) return;
         if (_state.workers.length > 0) return;
 
-        const maxWorkers = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2) || 2));
+        const cores = navigator.hardwareConcurrency || 4;
+        const maxWorkers = Math.max(1, Math.min(4, Math.floor(cores / 2) || 2));
+        _state.maxWorkerConcurrent = Math.min(maxWorkers, Math.max(1, Math.floor(cores * 2 / 3))) || maxWorkers;
 
         for (let i = 0; i < maxWorkers; i++) {
             try {
@@ -199,18 +203,20 @@ const ImageProcessor = (function() {
                                 if (cb?.resolve) {
                                     cb.resolve(result);
                                     _state.workerCallbacks.delete(id);
-                                    return true;
                                 }
-                                return false;
+                                worker.__busy = false;
+                                _dispatchNextWorkerTask();
+                                return true;
                             }
                             case 'error': {
                                 const errCb = _state.workerCallbacks.get(id);
                                 if (errCb?.reject) {
                                     errCb.reject(new Error(error));
                                     _state.workerCallbacks.delete(id);
-                                    return true;
                                 }
-                                return false;
+                                worker.__busy = false;
+                                _dispatchNextWorkerTask();
+                                return true;
                             }
                         }
                         return true;
@@ -231,9 +237,12 @@ const ImageProcessor = (function() {
                         worker.__ready = false;
                         _state.workerReadyCount = Math.max(0, _state.workerReadyCount - 1);
                     }
+                    worker.__busy = false;
+                    _dispatchNextWorkerTask();
                 };
 
                 worker.__ready = false;
+                worker.__busy = false;
                 _state.workers.push(worker);
 
                 // Initialize worker with config
@@ -249,36 +258,49 @@ const ImageProcessor = (function() {
     }
     
     /**
-     * Send message to worker and wait for response
+     * Dispatch queued tasks to an available worker
      */
-    function _workerProcess(type, data, onProgress) {
+    function _dispatchNextWorkerTask() {
+        if (_state.workerQueue.length === 0) return;
+        // Respect max concurrent busy workers
+        const busyCount = _state.workers.filter(w => w && w.__busy).length;
+        if (busyCount >= _state.maxWorkerConcurrent) return;
+
+        const worker = _state.workers.find(w => w && w.__ready && !w.__busy);
+        if (!worker) return;
+
+        const task = _state.workerQueue.shift();
+        const { type, data, onProgress, resolve, reject, transfers } = task;
+
+        const id = ++_state.callbackId;
+        _state.workerCallbacks.set(id, { resolve, reject, onProgress });
+        worker.__busy = true;
+
+        try {
+            if (transfers && transfers.length > 0) {
+                worker.postMessage({ type, id, data }, transfers);
+            } else {
+                worker.postMessage({ type, id, data });
+            }
+        } catch (err) {
+            _state.workerCallbacks.delete(id);
+            worker.__busy = false;
+            reject(err);
+            queueMicrotask(_dispatchNextWorkerTask);
+        }
+    }
+
+    /**
+     * Enqueue a task to worker pool
+     */
+    function _workerProcess(type, data, onProgress, transfers = []) {
         return new Promise((resolve, reject) => {
             if (_state.workerReadyCount === 0 || _state.workers.length === 0) {
                 reject(new Error('Worker not available'));
                 return;
             }
-
-            // Round-robin pick a ready worker
-            let worker = null;
-            const total = _state.workers.length;
-            for (let i = 0; i < total; i++) {
-                const idx = (_state.nextWorkerIndex + i) % total;
-                if (_state.workers[idx]?.__ready) {
-                    worker = _state.workers[idx];
-                    _state.nextWorkerIndex = (idx + 1) % total;
-                    break;
-                }
-            }
-
-            if (!worker) {
-                reject(new Error('No ready worker'));
-                return;
-            }
-            
-            const id = ++_state.callbackId;
-            _state.workerCallbacks.set(id, { resolve, reject, onProgress });
-            
-            worker.postMessage({ type, id, data });
+            _state.workerQueue.push({ type, data, onProgress, resolve, reject, transfers });
+            _dispatchNextWorkerTask();
         });
     }
 
@@ -781,12 +803,17 @@ const ImageProcessor = (function() {
             // Try Worker first if available and enabled
             if (useWorker && _state.workerReadyCount > 0 && _state.supportsOffscreenCanvas) {
                 try {
-                    console.log('Processing with Worker');
-                    const scaledImageData = await _getScaledImageData(img, targetWidth, targetHeight);
+                    console.log('Processing with Worker (ImageBitmap transfer)');
+                    // 优先用 ImageBitmap (transferable)，减少结构化拷贝
+                    const bitmap = await createImageBitmap(img, {
+                        resizeWidth: targetWidth,
+                        resizeHeight: targetHeight,
+                        resizeQuality: 'high'
+                    });
                     _revokeTrackedObjectUrl(img.src);
                     
                     const result = await _workerProcess('process', {
-                        imageData: scaledImageData,
+                        imageBitmap: bitmap,
                         maxWidth: targetWidth,
                         maxHeight: targetHeight,
                         screenWidth: window.screen.width * (window.devicePixelRatio || 1),
@@ -795,7 +822,7 @@ const ImageProcessor = (function() {
                         alreadyScaled: true,
                         originalWidth,
                         originalHeight
-                    }, onProgress);
+                    }, onProgress, [bitmap]);
                     
                     blob = result.blob;
                     onProgress(95);
@@ -906,15 +933,6 @@ const ImageProcessor = (function() {
     function init() {
         _initWorkers();
         _checkWebPSupport();
-    }
-
-    // Auto-initialize
-    if (typeof document !== 'undefined') {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            init();
-        }
     }
 
     // ==================== Public API ====================

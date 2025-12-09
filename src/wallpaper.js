@@ -1125,6 +1125,10 @@ const WallpaperManager = (function () {
         try {
             // Check if ImageProcessor is available
             if (typeof ImageProcessor !== 'undefined') {
+                // Lazy init to avoid blocking first paint
+                if (!ImageProcessor.isWorkerAvailable()) {
+                    ImageProcessor.init();
+                }
                 // Use ImageProcessor for optimized handling
                 const statusLoading = _getLocalizedMessage('processingLoading', 'Loading image...');
                 const statusOptimizing = _getLocalizedMessage('processingOptimizing', 'Optimizing...');

@@ -270,6 +270,7 @@ ctx.onmessage = async function(e) {
                 // Process image
                 const { 
                     imageData, 
+                    imageBitmap,
                     maxWidth, 
                     maxHeight, 
                     screenWidth, 
@@ -287,18 +288,24 @@ ctx.onmessage = async function(e) {
                 let canvas;
 
                 if (alreadyScaled) {
-                    // ImageData is already at target dimensions; write directly to output (no further scaling required)
-                    targetWidth = imageData.width;
-                    targetHeight = imageData.height;
+                    // Already scaled: prefer ImageBitmap path if provided
+                    const source = imageBitmap || imageData;
+                    targetWidth = source.width;
+                    targetHeight = source.height;
                     canvas = new OffscreenCanvas(targetWidth, targetHeight);
                     const outCtx = canvas.getContext('2d', { alpha: false, desynchronized: true });
-                    outCtx.putImageData(imageData, 0, 0);
+                    if (imageBitmap) {
+                        outCtx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+                        imageBitmap.close();
+                    } else {
+                        outCtx.putImageData(imageData, 0, 0);
+                    }
                     if (onProgress) ctx.postMessage({ type: 'progress', progress: 60, id });
                 } else {
                     // Calculate target dimensions
                     const dims = calculateDimensions(
-                        imageData.width,
-                        imageData.height,
+                        (imageBitmap && imageBitmap.width) || imageData.width,
+                        (imageBitmap && imageBitmap.height) || imageData.height,
                         maxWidth || CONFIG.MAX_WIDTH,
                         maxHeight || CONFIG.MAX_HEIGHT,
                         screenWidth,
@@ -308,14 +315,25 @@ ctx.onmessage = async function(e) {
                     targetHeight = dims.height;
                     
                     // Process image
-                    canvas = await processImageData(
-                        imageData,
-                        targetWidth,
-                        targetHeight,
-                        (progress) => {
-                            ctx.postMessage({ type: 'progress', progress, id });
-                        }
-                    );
+                    const src = imageBitmap || imageData;
+                    if (imageBitmap) {
+                        canvas = new OffscreenCanvas(targetWidth, targetHeight);
+                        const ctx2d = canvas.getContext('2d', { alpha: false, desynchronized: true });
+                        ctx2d.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+                        imageBitmap.close();
+                    } else {
+                        canvas = await processImageData(
+                            imageData,
+                            targetWidth,
+                            targetHeight,
+                            (progress) => {
+                                // Reduce progress chatter: only key stages
+                                if (progress === 35 || progress === 70 || progress === 90) {
+                                    ctx.postMessage({ type: 'progress', progress, id });
+                                }
+                            }
+                        );
+                    }
                 }
                 
                 ctx.postMessage({ type: 'progress', progress: 75, id });
