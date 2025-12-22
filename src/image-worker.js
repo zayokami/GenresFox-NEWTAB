@@ -300,7 +300,8 @@ ctx.onmessage = async function(e) {
                     } else {
                         outCtx.putImageData(imageData, 0, 0);
                     }
-                    if (onProgress) ctx.postMessage({ type: 'progress', progress: 60, id });
+                    // Progress update for scaled path
+                    ctx.postMessage({ type: 'progress', progress: 60, id });
                 } else {
                     // Calculate target dimensions
                     const dims = calculateDimensions(

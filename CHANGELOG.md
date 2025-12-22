@@ -5,6 +5,23 @@ All notable changes to GenresFox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.9] - 2025-12-22
+
+### Added
+- Instant wallpaper preview cache for new tabs (small, low-res snapshot) to eliminate black flashes
+- Ultra-short wallpaper-layer fade-in for smoother first-frame experience
+- Explicit shortcut icon fallback state with clearer styling and tooltips
+
+### Changed
+- Settings modal open/close animation shortened and eased for snappier feel
+- Shortcut hover interaction tuned for faster, more responsive lift/highlight
+- Bilibili default shortcut icon now uses DuckDuckGo favicon service for better reliability
+- International comments in core scripts normalized to English for consistency
+
+### Fixed
+- Repeated favicon refetch attempts for problematic sites (GitHub/Bilibili/etc.) by caching failure state
+- Intermittent Bing wallpaper processing Worker errors (now using ImageBitmap path robustly)
+
 ## [0.3.8] - 2025-12-08
 
 ### Added

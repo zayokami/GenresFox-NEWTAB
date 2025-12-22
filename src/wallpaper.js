@@ -19,7 +19,8 @@ const WallpaperManager = (function () {
             LEGACY_WALLPAPER: 'wallpaper',
             BING_WALLPAPER_CACHE: 'bingWallpaperCache',
             WALLPAPER_SOURCE: 'wallpaperSource',
-            BING_MARKET: 'bingMarket'
+            BING_MARKET: 'bingMarket',
+            WALLPAPER_PREVIEW_SMALL: 'wallpaperPreviewSmall'
         },
         CSS_VARS: {
             WALLPAPER_IMAGE: '--wallpaper-image',
@@ -260,10 +261,94 @@ const WallpaperManager = (function () {
     // ==================== Core Wallpaper Functions ====================
 
     /**
+     * Save a small preview of the current wallpaper to localStorage
+     * so that new tabs can show a fast, low-res wallpaper immediately.
+     * Runs in idle time to avoid blocking UI.
+     * @param {Blob|string} source - Blob or dataURL/string from legacy storage
+     * @param {string} kind - 'bing' | 'custom'
+     */
+    function _saveWallpaperPreviewSmall(source, kind) {
+        _runWhenIdle(async () => {
+            try {
+                let img;
+                if (source instanceof Blob) {
+                    const url = URL.createObjectURL(source);
+                    try {
+                        img = await createImageBitmap(source);
+                        URL.revokeObjectURL(url);
+                    } catch (e) {
+                        URL.revokeObjectURL(url);
+                        return;
+                    }
+                } else if (typeof source === 'string' && source) {
+                    // Legacy dataURL / URL string
+                    img = new Image();
+                    await new Promise((resolve, reject) => {
+                        img.onload = () => resolve();
+                        img.onerror = () => reject(new Error('preview load failed'));
+                        img.src = source;
+                    });
+                } else {
+                    return;
+                }
+
+                const maxW = 480;
+                const scale = img.width > maxW ? (maxW / img.width) : 1;
+                const w = Math.max(1, Math.round(img.width * scale));
+                const h = Math.max(1, Math.round(img.height * scale));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d', { alpha: false });
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                canvas.width = 0;
+                canvas.height = 0;
+                if (img.close) img.close();
+
+                const payload = {
+                    dataUrl,
+                    width: w,
+                    height: h,
+                    kind,
+                    ts: Date.now()
+                };
+                try {
+                    localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_PREVIEW_SMALL, JSON.stringify(payload));
+                } catch (_) {
+                    // Ignore quota errors
+                }
+            } catch (_) {
+                // Silent failure – preview is purely best-effort
+            }
+        }, 2000);
+    }
+
+    /**
      * Set wallpaper URL
      * @param {string} url - Wallpaper URL (can be blob URL or data URL)
      */
     function _setWallpaper(url) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'wallpaper-black-flash-1',
+                hypothesisId:'WB1',
+                location:'wallpaper.js:_setWallpaper',
+                message:'setWallpaper called',
+                data:{
+                    urlKind: !url ? 'empty' : (url === 'none' ? 'none' : (url.startsWith('blob:') ? 'blob' : (url.startsWith('data:') ? 'data' : 'http'))),
+                    source:_state.wallpaperSource
+                },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
         // Revoke old blob URL to prevent memory leaks
         if (_state.currentWallpaperUrl &&
             _state.currentWallpaperUrl.startsWith('blob:') &&
@@ -982,6 +1067,21 @@ const WallpaperManager = (function () {
      * @returns {Promise<boolean>} Whether successful
      */
     async function _applyBingWallpaper() {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H2',
+                location:'wallpaper.js:_applyBingWallpaper:start',
+                message:'applyBingWallpaper start',
+                data:{},
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
         try {
             // Get wallpaper (from cache or download)
             const result = await _getBingWallpaper();
@@ -997,6 +1097,8 @@ const WallpaperManager = (function () {
             // Create object URL from cached blob
             const imageUrl = URL.createObjectURL(blob);
             _setWallpaper(imageUrl);
+            // Save low-res preview for instant first paint on future tabs
+            _saveWallpaperPreviewSmall(blob, CONFIG.WALLPAPER_SOURCES.BING);
             
             _state.wallpaperSource = CONFIG.WALLPAPER_SOURCES.BING;
             localStorage.setItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE, CONFIG.WALLPAPER_SOURCES.BING);
@@ -1005,9 +1107,46 @@ const WallpaperManager = (function () {
             // Schedule preload of tomorrow's wallpaper
             _preloadTomorrowBingWallpaper();
             
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    sessionId:'debug-session',
+                    runId:'pre-fix-1',
+                    hypothesisId:'H2',
+                    location:'wallpaper.js:_applyBingWallpaper:success',
+                    message:'applyBingWallpaper success',
+                    data:{
+                        hasInfo:!!info,
+                        date:info && info.date,
+                        title:info && info.title
+                    },
+                    timestamp:Date.now()
+                })
+            }).catch(()=>{});
+            // #endregion
+
             return true;
         } catch (e) {
             console.error('Failed to apply Bing wallpaper:', e);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    sessionId:'debug-session',
+                    runId:'pre-fix-1',
+                    hypothesisId:'H2',
+                    location:'wallpaper.js:_applyBingWallpaper:error',
+                    message:'applyBingWallpaper error',
+                    data:{
+                        error:String(e && e.message || e)
+                    },
+                    timestamp:Date.now()
+                })
+            }).catch(()=>{});
+            // #endregion
             return false;
         }
     }
@@ -1197,6 +1336,7 @@ const WallpaperManager = (function () {
                 _setWallpaper(objectUrl);
                 _updatePreview(objectUrl);
                 _applyWallpaperEffects();
+                _saveWallpaperPreviewSmall(result.blob, CONFIG.WALLPAPER_SOURCES.CUSTOM);
                 
                 _hideProcessingProgress();
                 
@@ -1212,6 +1352,7 @@ const WallpaperManager = (function () {
                 _setWallpaper(objectUrl);
                 _updatePreview(objectUrl);
                 _applyWallpaperEffects();
+                _saveWallpaperPreviewSmall(file, CONFIG.WALLPAPER_SOURCES.CUSTOM);
             }
 
             // Mark as custom wallpaper
@@ -1718,6 +1859,21 @@ const WallpaperManager = (function () {
      */
     async function _loadWallpaper() {
         let wallpaperLoaded = false;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'wallpaper-black-flash-1',
+                hypothesisId:'WB2',
+                location:'wallpaper.js:_loadWallpaper:start',
+                message:'loadWallpaper start',
+                data:{},
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
 
         // Check saved wallpaper source preference (clean up legacy values)
         let savedSource = localStorage.getItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE);
@@ -1733,9 +1889,12 @@ const WallpaperManager = (function () {
                 let objectUrl;
                 if (dbData instanceof Blob) {
                     objectUrl = URL.createObjectURL(dbData);
+                    // Backfill small preview for future cold starts
+                    _saveWallpaperPreviewSmall(dbData, CONFIG.WALLPAPER_SOURCES.CUSTOM);
                 } else {
                     // Backward compatibility with old format (base64 string)
                     objectUrl = dbData;
+                    _saveWallpaperPreviewSmall(dbData, CONFIG.WALLPAPER_SOURCES.CUSTOM);
                 }
                 _setWallpaper(objectUrl);
                 _updatePreview(objectUrl);
@@ -1762,6 +1921,19 @@ const WallpaperManager = (function () {
             try {
                 // Don't block UI on network; kick off Bing fetch in background when idle
                 _runWhenIdle(() => {
+                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({
+                            sessionId:'debug-session',
+                            runId:'wallpaper-black-flash-1',
+                            hypothesisId:'WB2',
+                            location:'wallpaper.js:_loadWallpaper:idleBing',
+                            message:'schedule async Bing apply',
+                            data:{},
+                            timestamp:Date.now()
+                        })
+                    }).catch(()=>{});
                     _applyBingWallpaper().catch((e) => console.warn('Failed to load Bing wallpaper (async):', e));
                 }, 1500);
                 wallpaperLoaded = true; // allow UI to continue with transparent/previous state
@@ -1776,6 +1948,22 @@ const WallpaperManager = (function () {
         }
 
         _updateResetButtonState();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'wallpaper-black-flash-1',
+                hypothesisId:'WB2',
+                location:'wallpaper.js:_loadWallpaper:end',
+                message:'loadWallpaper end',
+                data:{ wallpaperLoaded, source:_state.wallpaperSource },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
 
         return wallpaperLoaded;
     }

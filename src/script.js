@@ -306,7 +306,8 @@ const defaultEngines = {
 const defaultShortcuts = [
     { name: "GitHub", url: "https://github.com", icon: "https://github.com/favicon.ico" },
     { name: "YouTube", url: "https://youtube.com", icon: "https://www.youtube.com/favicon.ico" },
-    { name: "Bilibili", url: "https://bilibili.com", icon: "https://www.bilibili.com/favicon.ico" },
+    // Use DuckDuckGo icon service for Bilibili to avoid region / CORS issues with site favicon
+    { name: "Bilibili", url: "https://bilibili.com", icon: "https://icons.duckduckgo.com/ip3/bilibili.com.ico" },
     { name: "Gmail", url: "https://mail.google.com", icon: "https://mail.google.com/favicon.ico" }
 ];
 
@@ -344,6 +345,19 @@ try {
 if (!shortcuts || !Array.isArray(shortcuts) || shortcuts.length === 0) {
     shortcuts = defaultShortcuts;
     localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+} else {
+    // Lightweight migration: fix known problematic Bilibili icon for existing users
+    let migrated = false;
+    shortcuts.forEach((s) => {
+        if (!s || typeof s.url !== 'string') return;
+        if (s.url.includes('bilibili.com') && typeof s.icon === 'string' && s.icon.includes('www.bilibili.com')) {
+            s.icon = "https://icons.duckduckgo.com/ip3/bilibili.com.ico";
+            migrated = true;
+        }
+    });
+    if (migrated) {
+        localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+    }
 }
 
 // Folder helpers
@@ -459,8 +473,48 @@ async function _getIconFromDB(key) {
         const tx = db.transaction(ICON_CACHE_STORE, 'readonly');
         const store = tx.objectStore(ICON_CACHE_STORE);
         const req = store.get(key);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            const entry = req.result || null;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    sessionId:'debug-session',
+                    runId:'pre-fix-1',
+                    hypothesisId:'H3',
+                    location:'script.js:_getIconFromDB:onsuccess',
+                    message:'_getIconFromDB result',
+                    data:{
+                        key,
+                        hasEntry:!!entry,
+                        version:entry && entry.version,
+                        status:entry && entry.status
+                    },
+                    timestamp:Date.now()
+                })
+            }).catch(()=>{});
+            // #endregion
+            resolve(entry);
+        };
+        req.onerror = () => {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    sessionId:'debug-session',
+                    runId:'pre-fix-1',
+                    hypothesisId:'H3',
+                    location:'script.js:_getIconFromDB:error',
+                    message:'_getIconFromDB error',
+                    data:{ key },
+                    timestamp:Date.now()
+                })
+            }).catch(()=>{});
+            // #endregion
+            reject(req.error);
+        };
     });
 }
 
@@ -469,7 +523,13 @@ async function _putIconToDB(key, dataUrl) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction(ICON_CACHE_STORE, 'readwrite');
         const store = tx.objectStore(ICON_CACHE_STORE);
-        const record = { key, data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION };
+        const record = { 
+            key, 
+            data: dataUrl || null, 
+            status: dataUrl ? 'ok' : 'failed',
+            updatedAt: Date.now(), 
+            version: ICON_CACHE_VERSION 
+        };
         store.put(record);
         tx.oncomplete = () => resolve(record);
         tx.onerror = () => reject(tx.error);
@@ -521,24 +581,69 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
 
     const task = (async () => {
         const candidates = _buildIconCandidates(rawIconUrl, pageUrl);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H3',
+                location:'script.js:cacheIcon:start',
+                message:'cacheIcon start',
+                data:{ key, candidates:candidates.slice(0,3) },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
 
         for (const candidate of candidates) {
             try {
                 const dataUrl = await _fetchIconAsDataUrl(candidate);
-                _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION });
+                _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION, status: 'ok' });
                 await _putIconToDB(key, dataUrl);
                 _updateImagesForKey(key, dataUrl);
                 // Keep legacy localStorage for backward compatibility
                 localStorage.setItem(`icon_cache_${key}`, dataUrl);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({
+                        sessionId:'debug-session',
+                        runId:'pre-fix-1',
+                        hypothesisId:'H3',
+                        location:'script.js:cacheIcon:successFetch',
+                        message:'cacheIcon success via fetch',
+                        data:{ key, candidate },
+                        timestamp:Date.now()
+                    })
+                }).catch(()=>{});
+                // #endregion
                 return;
             } catch (fetchErr) {
                 // If fetch failed, try canvas-based fallback
                 try {
                     const dataUrl = await _loadIconViaImage(candidate);
-                    _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION });
+                    _iconCacheInMemory.set(key, { data: dataUrl, updatedAt: Date.now(), version: ICON_CACHE_VERSION, status: 'ok' });
                     await _putIconToDB(key, dataUrl);
                     _updateImagesForKey(key, dataUrl);
                     localStorage.setItem(`icon_cache_${key}`, dataUrl);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({
+                            sessionId:'debug-session',
+                            runId:'pre-fix-1',
+                            hypothesisId:'H3',
+                            location:'script.js:cacheIcon:successImage',
+                            message:'cacheIcon success via image',
+                            data:{ key, candidate },
+                            timestamp:Date.now()
+                        })
+                    }).catch(()=>{});
+                    // #endregion
                     return;
                 } catch (imgErr) {
                     // Continue to next candidate
@@ -546,6 +651,35 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
             }
         }
         console.warn(`Failed to cache icon: ${key}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H3',
+                location:'script.js:cacheIcon:failed',
+                message:'cacheIcon all candidates failed',
+                data:{ key },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
+        // Mark this key as failed so future getIconSrc() calls won't keep retrying
+        const failedEntry = {
+            key,
+            data: null,
+            status: 'failed',
+            updatedAt: Date.now(),
+            version: ICON_CACHE_VERSION
+        };
+        _iconCacheInMemory.set(key, failedEntry);
+        try {
+            await _putIconToDB(key, null);
+        } catch (_) {
+            // ignore DB failure for failed marker
+        }
     })().finally(() => {
         _iconCacheInFlight.delete(key);
     });
@@ -559,13 +693,49 @@ function getIconSrc(key, url, pageUrl) {
 
     // 1) In-memory cache
     const mem = _iconCacheInMemory.get(key);
-    if (mem && _isIconFresh(mem)) return mem.data;
+    if (mem && _isIconFresh(mem)) {
+        const isFailed = mem.status === 'failed' || !mem.data;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H3',
+                location:'script.js:getIconSrc:mem',
+                message:'getIconSrc memory hit',
+                data:{ key, status: mem.status || (isFailed ? 'failed' : 'ok') },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
+        if (isFailed) {
+            return preferredUrl;
+        }
+        return mem.data;
+    }
 
     // 2) Legacy localStorage (migrate to DB asynchronously)
     const legacy = localStorage.getItem(`icon_cache_${key}`);
     if (legacy) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H3',
+                location:'script.js:getIconSrc:legacy',
+                message:'getIconSrc legacy hit',
+                data:{ key },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
         // Treat legacy localStorage entry as fresh for this session so we don't refetch every render
-        _iconCacheInMemory.set(key, { data: legacy, updatedAt: Date.now(), version: ICON_CACHE_VERSION });
+        _iconCacheInMemory.set(key, { data: legacy, updatedAt: Date.now(), version: ICON_CACHE_VERSION, status: 'ok' });
         _putIconToDB(key, legacy).catch(() => {});
         // Refresh asynchronously to ensure long-term freshness
         cacheIcon(key, preferredUrl, pageUrl);
@@ -575,19 +745,43 @@ function getIconSrc(key, url, pageUrl) {
     // 3) IndexedDB async fetch; update DOM when ready
     _getIconFromDB(key).then(entry => {
         if (entry && _isIconFresh(entry)) {
+            const isFailed = entry.status === 'failed' || !entry.data;
             _iconCacheInMemory.set(key, entry);
-            _updateImagesForKey(key, entry.data);
+            if (!isFailed && entry.data) {
+                _updateImagesForKey(key, entry.data);
+            }
+            if (!isFailed) {
+                return;
+            }
+            // For failed entries, don't retry cacheIcon; just rely on preferredUrl
         } else if (entry && entry.data) {
             // Stale: show it first, then refresh
             _iconCacheInMemory.set(key, entry);
             _updateImagesForKey(key, entry.data);
             cacheIcon(key, preferredUrl, pageUrl);
+            return;
         } else {
             cacheIcon(key, preferredUrl, pageUrl);
+            return;
         }
     }).catch(() => cacheIcon(key, preferredUrl, pageUrl));
 
     // 4) Fallback to live URL while cache resolves
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+            sessionId:'debug-session',
+            runId:'pre-fix-1',
+            hypothesisId:'H3',
+            location:'script.js:getIconSrc:fallback',
+            message:'getIconSrc fallback preferredUrl',
+            data:{ key, preferredUrl },
+            timestamp:Date.now()
+        })
+    }).catch(()=>{});
+    // #endregion
     return preferredUrl;
 }
 
@@ -769,6 +963,10 @@ function renderShortcutsGrid() {
                 img.onerror = () => {
                     img.style.display = 'none';
                     cell.textContent = (item.name || '?').charAt(0).toUpperCase();
+                    cell.classList.add('shortcut-icon-fallback');
+                    cell.title = (window.I18n && I18n.getMessage)
+                        ? (I18n.getMessage('shortcutIconError') || 'Icon failed to load, using initial instead.')
+                        : 'Icon failed to load, using initial instead.';
                 };
                 cell.appendChild(img);
                 stack.appendChild(cell);
@@ -805,14 +1003,20 @@ function renderShortcutsGrid() {
             img.src = iconSrc;
 
         // Remove loading class when image loads or fails
-        img.onload = () => iconDiv.classList.remove("loading");
+        img.onload = () => {
+            iconDiv.classList.remove("loading");
+        };
         img.onerror = () => {
             iconDiv.classList.remove("loading");
-            // Use a fallback icon (first letter of name)
+            // Use a fallback icon (first letter of name) with explicit error state
             img.style.display = 'none';
             iconDiv.textContent = shortcut.name.charAt(0).toUpperCase();
             iconDiv.style.fontSize = '18px';
             iconDiv.style.fontWeight = '600';
+            iconDiv.classList.add('shortcut-icon-fallback');
+            iconDiv.title = (window.I18n && I18n.getMessage)
+                ? (I18n.getMessage('shortcutIconError') || 'Icon failed to load, using initial instead.')
+                : 'Icon failed to load, using initial instead.';
         };
 
         iconDiv.appendChild(img);
@@ -937,7 +1141,7 @@ function isDangerousUrl(url) {
         if (proto !== 'http:' && proto !== 'https:') return true;
         return false;
     } catch (e) {
-        // If parsing失败，视为危险
+        // If URL parsing fails, treat it as dangerous
         return true;
     }
 }

@@ -742,6 +742,27 @@ const ImageProcessor = (function() {
             useCache = true,
             useWorker = true
         } = options;
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                sessionId:'debug-session',
+                runId:'pre-fix-1',
+                hypothesisId:'H1',
+                location:'image-processor.js:processImage:start',
+                message:'processImage start',
+                data:{
+                    fileSize:file && file.size,
+                    useWorker,
+                    useCache,
+                    workerReadyCount:_state.workerReadyCount
+                },
+                timestamp:Date.now()
+            })
+        }).catch(()=>{});
+        // #endregion
         
         try {
             // Validate file size
@@ -799,12 +820,13 @@ const ImageProcessor = (function() {
             );
             
             let blob;
+            let usedWorker = false;
             
             // Try Worker first if available and enabled
             if (useWorker && _state.workerReadyCount > 0 && _state.supportsOffscreenCanvas) {
                 try {
                     console.log('Processing with Worker (ImageBitmap transfer)');
-                    // 优先用 ImageBitmap (transferable)，减少结构化拷贝
+                    // Prefer ImageBitmap (transferable) to reduce structured clone overhead
                     const bitmap = await createImageBitmap(img, {
                         resizeWidth: targetWidth,
                         resizeHeight: targetHeight,
@@ -825,10 +847,28 @@ const ImageProcessor = (function() {
                     }, onProgress, [bitmap]);
                     
                     blob = result.blob;
+                    usedWorker = true;
                     onProgress(95);
                     
                 } catch (workerError) {
                     console.warn('Worker processing failed, falling back to main thread:', workerError);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({
+                            sessionId:'debug-session',
+                            runId:'pre-fix-1',
+                            hypothesisId:'H1',
+                            location:'image-processor.js:processImage:workerError',
+                            message:'Worker processing error',
+                            data:{
+                                error:String(workerError && workerError.message || workerError)
+                            },
+                            timestamp:Date.now()
+                        })
+                    }).catch(()=>{});
+                    // #endregion
                     // Fall through to main thread processing
                 }
             }
@@ -879,6 +919,28 @@ const ImageProcessor = (function() {
                 processingTime: Math.round(endTime - startTime)
             };
             
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({
+                    sessionId:'debug-session',
+                    runId:'pre-fix-1',
+                    hypothesisId:'H1',
+                    location:'image-processor.js:processImage:end',
+                    message:'processImage end',
+                    data:{
+                        fileSize:file && file.size,
+                        usedWorker,
+                        processingTime:result.processingTime,
+                        originalSize:result.originalSize,
+                        processedSize:result.processedSize
+                    },
+                    timestamp:Date.now()
+                })
+            }).catch(()=>{});
+            // #endregion
+
             console.log(`Processed in ${result.processingTime}ms: ${file.size} → ${blob.size} bytes`);
             
             // Cache result
