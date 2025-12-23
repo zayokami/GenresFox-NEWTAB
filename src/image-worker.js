@@ -1,6 +1,17 @@
 /**
  * Image Processing Web Worker
  * Handles heavy image processing off the main thread
+ * 
+ * WASM Support:
+ * - WASM can be enabled via CONFIG.WASM_URL and CONFIG.WASM_ENABLED
+ * - Automatically enabled for large images (>20MP) when WASM_URL is set
+ * - Requires WASM module exporting: resize_rgba(srcPtr, srcW, srcH, dstPtr, dstW, dstH)
+ * - Falls back to Canvas API if WASM is unavailable
+ * 
+ * To use WASM:
+ * 1. Build or obtain a WASM module with resize_rgba function
+ * 2. Place it in the extension's web_accessible_resources
+ * 3. Call ImageProcessor.setWasmUrl('path/to/resize.wasm') from main thread
  */
 
 // Worker context
@@ -18,6 +29,7 @@ let CONFIG = {
     TARGET_OUTPUT_SIZE: 5 * 1024 * 1024,
     WASM_URL: null,
     WASM_ENABLED: false,
+    WASM_AUTO_ENABLE_THRESHOLD: 20 * 1000 * 1000, // 20MP - auto-enable threshold
     MAX_PIXELS: 80 * 1000 * 1000 // Keep for symmetry; enforced in main thread
 };
 
@@ -27,7 +39,8 @@ const WASM = {
     exports: null,
     ready: false,
     allocPtr: 0,
-    heapCapacity: 0
+    heapCapacity: 0,
+    hasNearest: false  // Whether nearest neighbor resize is available
 };
 
 /**
@@ -56,15 +69,35 @@ function calculateDimensions(width, height, maxWidth, maxHeight, screenWidth, sc
  */
 async function processImageData(imageData, targetWidth, targetHeight, onProgress) {
     const { width: srcWidth, height: srcHeight } = imageData;
+    const totalPixels = srcWidth * srcHeight;
     
-    // Prefer WASM path if enabled and ready
-    if (CONFIG.WASM_ENABLED && WASM.ready) {
-        const wasmCanvas = await processImageDataWithWasm(imageData, targetWidth, targetHeight, onProgress);
-        if (wasmCanvas) {
-            return wasmCanvas;
+    // Prefer WASM path for large images if enabled and ready
+    // WASM is especially beneficial for images > 20MP where chunked Canvas processing is slow
+    if (CONFIG.WASM_ENABLED) {
+        // If WASM is still loading, wait a bit (max 500ms) for it to become ready
+        if (!WASM.ready && CONFIG.WASM_URL) {
+            const startWait = Date.now();
+            while (!WASM.ready && (Date.now() - startWait) < 500) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+        
+        // Try WASM if ready
+        if (WASM.ready) {
+            console.log(`[Worker] Using WASM for image resize: ${srcWidth}x${srcHeight} -> ${targetWidth}x${targetHeight} (${(totalPixels / 1000000).toFixed(1)}MP)`);
+            const wasmCanvas = await processImageDataWithWasm(imageData, targetWidth, targetHeight, onProgress);
+            if (wasmCanvas) {
+                console.log(`[Worker] WASM resize completed successfully`);
+                return wasmCanvas;
+            } else {
+                console.warn(`[Worker] WASM resize returned null, falling back to Canvas`);
+            }
+        } else if (CONFIG.WASM_ENABLED && CONFIG.WASM_URL) {
+            console.log(`[Worker] WASM enabled but not ready yet, using Canvas fallback`);
         }
     }
 
+    // Fallback to Canvas API processing
     // Create OffscreenCanvas for processing
     const canvas = new OffscreenCanvas(targetWidth, targetHeight);
     const ctx = canvas.getContext('2d', {
@@ -79,7 +112,7 @@ async function processImageData(imageData, targetWidth, targetHeight, onProgress
     const bitmap = await createImageBitmap(imageData);
     
     // Check if we need chunked processing
-    const totalPixels = srcWidth * srcHeight;
+    // Note: For very large images (>20MP), WASM would be faster, but Canvas chunked processing works as fallback
     const useChunked = totalPixels > 20 * 1000 * 1000; // 20MP threshold for chunked
     
     if (useChunked) {
@@ -157,25 +190,74 @@ async function optimizeBlobSize(canvas, targetSize, format) {
 
 /**
  * Load WASM module (if provided)
+ * @param {string} url - URL to WASM file
+ * @returns {Promise<void>}
  */
 async function loadWasm(url) {
+    if (WASM.ready) {
+        return; // Already loaded
+    }
+    
     try {
+        if (!url) {
+            throw new Error('WASM URL not provided');
+        }
+        
         const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`Failed to fetch WASM: ${resp.status}`);
+        if (!resp.ok) {
+            throw new Error(`Failed to fetch WASM: ${resp.status} ${resp.statusText}`);
+        }
+        
         const wasmBinary = await resp.arrayBuffer();
-        const { instance } = await WebAssembly.instantiate(wasmBinary, {});
-        if (!instance?.exports) throw new Error('WASM exports missing');
+        if (!wasmBinary || wasmBinary.byteLength === 0) {
+            throw new Error('WASM file is empty');
+        }
+        
+        // Try instantiateStreaming first (more efficient), fallback to instantiate
+        let instance;
+        try {
+            // Create a new fetch for streaming (some browsers don't support resp.clone() in workers)
+            const streamResp = await fetch(url);
+            const module = await WebAssembly.instantiateStreaming(streamResp);
+            instance = module.instance;
+        } catch (streamErr) {
+            // Fallback for browsers that don't support streaming
+            const module = await WebAssembly.instantiate(wasmBinary, {});
+            instance = module.instance;
+        }
+        
+        if (!instance?.exports) {
+            throw new Error('WASM instance missing exports');
+        }
+        
+        // Verify required exports exist
+        if (typeof instance.exports.resize_rgba !== 'function') {
+            throw new Error('WASM missing required export: resize_rgba');
+        }
+        
+        // Optional exports (for better performance)
+        if (typeof instance.exports.resize_rgba_nearest === 'function') {
+            WASM.hasNearest = true;
+        }
+        
+        if (!instance.exports.memory) {
+            throw new Error('WASM missing required export: memory');
+        }
+        
         WASM.instance = instance;
         WASM.exports = instance.exports;
         WASM.ready = true;
         WASM.allocPtr = 0;
-        WASM.heapCapacity = instance.exports?.memory?.buffer?.byteLength || 0;
-        console.log('[Worker] WASM loaded');
+        WASM.heapCapacity = instance.exports.memory.buffer.byteLength || 0;
+        
+        console.log(`[Worker] WASM loaded successfully (${(wasmBinary.byteLength / 1024).toFixed(1)}KB)`);
+        console.log(`[Worker] WASM exports: resize_rgba=${!!exports.resize_rgba}, memory=${!!exports.memory}, resize_rgba_nearest=${!!exports.resize_rgba_nearest}`);
     } catch (err) {
-        console.warn('[Worker] WASM load failed:', err);
+        console.warn('[Worker] WASM load failed, will use Canvas fallback:', err.message);
         WASM.instance = null;
         WASM.exports = null;
         WASM.ready = false;
+        // Don't throw - allow fallback to Canvas processing
     }
 }
 
@@ -204,7 +286,8 @@ function wasmAlloc(size) {
 
 /**
  * Process image data via WASM (expects export resize_rgba)
- * resize_rgba(srcPtr, srcW, srcH, dstPtr, dstW, dstH)
+ * resize_rgba(srcPtr, srcW, srcH, dstPtr, dstW, dstH) -> error_code
+ * Returns 0 on success, non-zero on error
  */
 async function processImageDataWithWasm(imageData, targetWidth, targetHeight, onProgress) {
     const exports = WASM.exports;
@@ -217,16 +300,44 @@ async function processImageDataWithWasm(imageData, targetWidth, targetHeight, on
         const srcSize = imageData.width * imageData.height * 4;
         const dstSize = targetWidth * targetHeight * 4;
 
-        const srcPtr = wasmAlloc(srcSize);
-        const dstPtr = wasmAlloc(dstSize);
-        if (srcPtr === null || dstPtr === null) {
+        // Use WASM memory allocation if available, otherwise use JavaScript allocation
+        let srcPtr, dstPtr;
+        if (typeof exports.alloc_memory === 'function') {
+            srcPtr = exports.alloc_memory(srcSize);
+            dstPtr = exports.alloc_memory(dstSize);
+        } else {
+            // Fallback: allocate in WASM memory using bump allocator
+            srcPtr = wasmAlloc(srcSize);
+            dstPtr = wasmAlloc(dstSize);
+        }
+        
+        if (srcPtr === null || dstPtr === null || srcPtr === 0 || dstPtr === 0) {
+            console.warn('[Worker] WASM memory allocation failed');
             return null;
         }
 
         const memoryU8 = new Uint8Array(exports.memory.buffer);
         memoryU8.set(imageData.data, srcPtr);
 
-        exports.resize_rgba(srcPtr, imageData.width, imageData.height, dstPtr, targetWidth, targetHeight);
+        // Call resize function and check return code
+        const errorCode = exports.resize_rgba(
+            srcPtr, 
+            imageData.width, 
+            imageData.height, 
+            dstPtr, 
+            targetWidth, 
+            targetHeight
+        );
+        
+        if (errorCode !== 0) {
+            console.warn(`[Worker] WASM resize failed with error code: ${errorCode}`);
+            // Clean up allocated memory
+            if (typeof exports.dealloc_memory === 'function') {
+                exports.dealloc_memory(srcPtr, srcSize);
+                exports.dealloc_memory(dstPtr, dstSize);
+            }
+            return null;
+        }
 
         if (onProgress) onProgress(70);
 
@@ -236,6 +347,12 @@ async function processImageDataWithWasm(imageData, targetWidth, targetHeight, on
             targetWidth,
             targetHeight
         );
+
+        // Clean up allocated memory
+        if (typeof exports.dealloc_memory === 'function') {
+            exports.dealloc_memory(srcPtr, srcSize);
+            exports.dealloc_memory(dstPtr, dstSize);
+        }
 
         const canvas = new OffscreenCanvas(targetWidth, targetHeight);
         const ctx = canvas.getContext('2d');
@@ -260,8 +377,11 @@ ctx.onmessage = async function(e) {
                 if (data.config) {
                     CONFIG = { ...CONFIG, ...data.config };
                 }
+                // Load WASM asynchronously if enabled (don't block ready signal)
                 if (CONFIG.WASM_ENABLED && CONFIG.WASM_URL) {
-                    loadWasm(CONFIG.WASM_URL);
+                    loadWasm(CONFIG.WASM_URL).catch(err => {
+                        console.warn('[Worker] WASM initialization failed, will use Canvas fallback:', err);
+                    });
                 }
                 ctx.postMessage({ type: 'ready', id });
                 break;

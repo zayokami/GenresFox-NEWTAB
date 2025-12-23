@@ -1295,6 +1295,13 @@ const WallpaperManager = (function () {
                 if (!ImageProcessor.isWorkerAvailable()) {
                     ImageProcessor.init();
                 }
+                // Auto-load local WASM file if available
+                try {
+                    ImageProcessor.setWasmUrl(chrome.runtime.getURL('resize.wasm'));
+                } catch (e) {
+                    // WASM file not available, will use Canvas fallback
+                    console.log('[Wallpaper] WASM not available, using Canvas API');
+                }
                 // Use ImageProcessor for optimized handling
                 const statusLoading = _getLocalizedMessage('processingLoading', 'Loading image...');
                 const statusOptimizing = _getLocalizedMessage('processingOptimizing', 'Optimizing...');

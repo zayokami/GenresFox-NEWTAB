@@ -53,6 +53,11 @@ const ImageProcessor = (function() {
         // Cache settings
         CACHE_MAX_ENTRIES: 10,
         CACHE_MAX_SIZE: 50 * 1024 * 1024, // 50MB total cache
+        
+        // WASM settings - auto-enabled for large images
+        WASM_ENABLED: false,  // Will be auto-enabled for large images
+        WASM_URL: null,       // Set to WASM file path or CDN URL if available
+        WASM_AUTO_ENABLE_THRESHOLD: 20 * 1000 * 1000, // 20MP - auto-enable WASM for images larger than this
     };
 
     // ==================== State ====================
@@ -245,11 +250,18 @@ const ImageProcessor = (function() {
                 worker.__busy = false;
                 _state.workers.push(worker);
 
-                // Initialize worker with config
+                // Initialize worker with config (including WASM settings if available)
                 worker.postMessage({
                     type: 'init',
                     id: 0,
-                    data: { config: CONFIG }
+                    data: { 
+                        config: {
+                            ...CONFIG,
+                            // Only pass WASM config if URL is available
+                            WASM_ENABLED: CONFIG.WASM_URL ? CONFIG.WASM_ENABLED : false,
+                            WASM_URL: CONFIG.WASM_URL || null
+                        }
+                    }
                 });
             } catch (e) {
                 console.warn('Failed to create Worker:', e);
@@ -798,6 +810,32 @@ const ImageProcessor = (function() {
                 img.width, img.height, maxWidth, maxHeight
             );
             
+            // Auto-enable WASM for large images if WASM URL is available
+            let shouldUseWasm = false;
+            if (CONFIG.WASM_URL && totalPixels >= CONFIG.WASM_AUTO_ENABLE_THRESHOLD) {
+                shouldUseWasm = true;
+                // Enable WASM in all workers if not already enabled
+                if (!CONFIG.WASM_ENABLED) {
+                    CONFIG.WASM_ENABLED = true;
+                    // Notify all workers to load WASM
+                    _state.workers.forEach(worker => {
+                        if (worker && worker.__ready) {
+                            worker.postMessage({
+                                type: 'init',
+                                id: 0,
+                                data: { 
+                                    config: { 
+                                        WASM_ENABLED: true, 
+                                        WASM_URL: CONFIG.WASM_URL 
+                                    } 
+                                }
+                            });
+                        }
+                    });
+                    console.log(`[ImageProcessor] Auto-enabled WASM for large image (${(totalPixels / 1000000).toFixed(1)}MP)`);
+                }
+            }
+            
             let blob;
             let usedWorker = false;
             
@@ -935,6 +973,56 @@ const ImageProcessor = (function() {
     function init() {
         _initWorkers();
         _checkWebPSupport();
+        
+        // Auto-load local WASM file if available
+        try {
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+                const wasmUrl = chrome.runtime.getURL('resize.wasm');
+                setWasmUrl(wasmUrl);
+            }
+        } catch (e) {
+            // WASM file not available, will use Canvas fallback
+            // Silently fail - this is expected if WASM file doesn't exist
+        }
+    }
+    
+    /**
+     * Set WASM URL for high-performance image processing
+     * WASM will be automatically enabled for images larger than WASM_AUTO_ENABLE_THRESHOLD (20MP)
+     * 
+     * @param {string} wasmUrl - URL to the WASM file (must export resize_rgba function)
+     * @example
+     * // Set WASM URL (e.g., from CDN or local file)
+     * ImageProcessor.setWasmUrl('https://cdn.example.com/resize.wasm');
+     * // Or local file (must be in extension's web_accessible_resources)
+     * ImageProcessor.setWasmUrl('resize.wasm');
+     */
+    function setWasmUrl(wasmUrl) {
+        if (!wasmUrl || typeof wasmUrl !== 'string') {
+            console.warn('[ImageProcessor] Invalid WASM URL provided');
+            return;
+        }
+        
+        CONFIG.WASM_URL = wasmUrl;
+        CONFIG.WASM_ENABLED = false; // Will be auto-enabled for large images
+        
+        // Notify existing workers to load WASM if they're ready
+        _state.workers.forEach(worker => {
+            if (worker && worker.__ready) {
+                worker.postMessage({
+                    type: 'init',
+                    id: 0,
+                    data: { 
+                        config: { 
+                            WASM_ENABLED: false, // Don't auto-load, wait for large image
+                            WASM_URL: wasmUrl 
+                        } 
+                    }
+                });
+            }
+        });
+        
+        console.log(`[ImageProcessor] WASM URL set: ${wasmUrl} (will auto-enable for images > ${CONFIG.WASM_AUTO_ENABLE_THRESHOLD / 1000000}MP)`);
     }
 
     // ==================== Public API ====================
@@ -944,6 +1032,9 @@ const ImageProcessor = (function() {
         processImageToUrl,
         generatePreview,
         generateProgressivePreview,
+        
+        // Configuration
+        setWasmUrl,
         
         // Cleanup
         cleanup,

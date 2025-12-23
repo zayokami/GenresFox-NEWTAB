@@ -30,3 +30,22 @@ node_modules/
 *.crx
 *.pem
 *.zip
+
+# Rust/WASM build artifacts
+# Note: src/resize.wasm is pre-compiled and should be committed
+src/wasm-resize/target/
+src/wasm-resize/Cargo.lock
+src/wasm-resize/**/*.rs.bk
+src/wasm-resize/.cargo/.cargo-ok
+
+# Rust compilation artifacts
+**/*.rlib
+**/*.rmeta
+**/*.d
+**/*.pdb
+
+# WASM build artifacts (except pre-compiled resize.wasm)
+# Keep: src/resize.wasm (pre-compiled for end users)
+# Ignore: target directory and other build outputs
+src/wasm-resize/target/**/*.wasm
+!src/resize.wasm

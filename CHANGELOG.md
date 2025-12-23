@@ -5,6 +5,50 @@ All notable changes to GenresFox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-23
+
+### Major Update: WebAssembly Acceleration
+
+This is a **major version update** introducing WebAssembly (WASM) acceleration for high-performance image processing.
+
+### Added
+- **WebAssembly Image Resizing Module**: Hand-written, zero-dependency WASM module for ultra-fast image resizing
+  - Automatic activation for large images (>20MP) for significant performance improvements
+  - Bilinear interpolation algorithm for high-quality scaling
+  - Nearest neighbor algorithm for large downscaling (auto-selected when scale factor >4x)
+  - Pre-compiled WASM file included - no compilation required for end users
+- **WASM Security & Transparency**:
+  - 100% open source and auditable Rust source code
+  - Zero external dependencies (verified with `cargo tree`)
+  - Complete security documentation in `src/wasm-resize/SECURITY.md`
+  - No backdoors, no network requests, no file system access
+- **Enhanced Error Handling**: Comprehensive error codes and validation for WASM operations
+- **Automatic Fallback**: Gracefully falls back to Canvas API if WASM is unavailable
+
+### Changed
+- **Image Processing Performance**: Large images (>20MP) now use WASM acceleration automatically
+- **Build System**: Added Rust-based WASM compilation setup (for developers only)
+- **Documentation**: Comprehensive WASM documentation including security, building, and verification guides
+
+### Technical Details
+- **WASM Module**: Pure Rust implementation using only standard library
+- **Zero Dependencies**: No third-party crates, verified with `cargo tree`
+- **Memory Management**: Manual memory allocation with proper cleanup
+- **Error Codes**: Standardized error codes (0=success, non-zero=error)
+- **Size Optimization**: Release build optimized for minimal binary size (~12.8KB)
+
+### For Developers
+- WASM source code: `src/wasm-resize/src/lib.rs`
+- Build instructions: `src/wasm-resize/BUILD.md`
+- Security documentation: `src/wasm-resize/SECURITY.md`
+- No dependencies to download - just install Rust and build
+
+### For End Users
+- Pre-compiled WASM file included - works out of the box
+- No Rust or compilation needed
+- Automatic performance boost for large images
+- Transparent and auditable - all source code available
+
 ## [0.3.9] - 2025-12-22
 
 ### Added

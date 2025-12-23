@@ -1,0 +1,36 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "link-arg=--export=resize_rgba",
+    "-C", "link-arg=--export=resize_rgba_nearest",
+    "-C", "link-arg=--export=alloc_memory",
+    "-C", "link-arg=--export=dealloc_memory",
+    "-C", "link-arg=--export=get_last_error",
+    "-C", "link-arg=--export=memory",
+]
+
+# China Mirror Source Configuration (Accelerates Dependency Downloads)
+# Use ByteDance Mirror Source (Recommended, Fast Speed)
+[source.crates-io]
+replace-with = "rsproxy"
+
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[registries.rsproxy]
+index = "https://rsproxy.cn/crates.io-index"
+
+[net]
+git-fetch-with-cli = true
+
+# Backup: Tsinghua Mirror Source (If the ByteDance source is unavailable, you can uncomment the configuration below and comment out the one above)
+# [source.crates-io]
+# replace-with = "tuna"
+# 
+# [source.tuna]
+# registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"

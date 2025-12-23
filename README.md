@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.3.9-blue.svg)
+![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Chrome](https://img.shields.io/badge/chrome-manifest%20v3-orange.svg)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zayokami/GenresFox)
@@ -26,7 +26,7 @@
 - **🔖 Quick Shortcuts**: Create shortcuts to your favorite websites with auto-fetched favicons
 - **🖼️ Custom Wallpapers**: Upload your own background images (up to 50MB, 50MP) with drag-and-drop support
 - **🌅 Bing Daily Wallpaper**: Beautiful daily wallpapers from Bing with smart 24-hour caching and preloading
-- **⚡ High-Performance Image Processing**: Web Worker support, progressive preview, and intelligent compression
+- **⚡ High-Performance Image Processing**: Web Worker support, WebAssembly acceleration, progressive preview, and intelligent compression
 - **🌍 Multi-language**: English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, French, German, Russian
 - **♿ Accessibility**: High contrast themes, font controls, animation settings, keyboard shortcuts
 - **⌨️ Keyboard Shortcuts**: Quick engine switching (Alt+↑↓), focus search (/), open settings (Alt+,)
@@ -107,6 +107,8 @@ GenresFox/
 │   ├── accessibility.js    # Accessibility features module
 │   ├── image-processor.js  # High-performance image processing module
 │   ├── image-worker.js     # Web Worker for background image processing
+│   ├── resize.wasm         # Pre-compiled WASM module for image resizing
+│   ├── wasm-resize/        # WASM source code (Rust) - only for developers
 │   ├── styles.css          # Main styles
 │   ├── search.css          # Search bar styles
 │   └── accessibility.css   # Accessibility styles
@@ -116,9 +118,10 @@ GenresFox/
 
 #### Technologies Used
 - **Manifest V3**: Latest Chrome extension standard
-- **Vanilla JavaScript**: No frameworks, pure performance
+- **Vanilla JavaScript**: Pure performance
 - **CSS3**: Modern styling with glassmorphism effects
 - **Web Workers**: Background image processing without blocking UI
+- **WebAssembly**: High-performance image resizing for large images
 - **IndexedDB**: For storing large wallpaper files and cache
 - **LocalStorage**: For persistent settings and metadata caching
 - **Chrome Extension APIs**: For internationalization and browser integration
@@ -157,6 +160,22 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - GitHub: [@KafuuChino](https://github.com/lian5727557)
 
+### 🔒 Security & Transparency
+
+The WASM module (`resize.wasm`) is **100% open source and auditable**:
+
+- ✅ **No backdoors** - All source code is available in `src/wasm-resize/src/lib.rs`
+- ✅ **Zero external dependencies** - Verified: `cargo tree` shows only the project itself, no third-party crates
+- ✅ **No build-time dependencies** - No `cargo fetch` needed, uses only Rust standard library (already included with Rust)
+- ✅ **Fully auditable** - You can review, compile, and verify the code yourself
+- ✅ **No network requests** - The WASM module only performs image resizing, no data transmission
+- ✅ **No file system access** - Operates entirely in memory
+- 📄 See `src/wasm-resize/SECURITY.md` for complete security statement and dependency list
+
+**For end users**: Pre-compiled WASM is included - no Rust or compilation needed!
+
+**For developers**: After installing Rust, you can build immediately - zero dependencies to download.
+
 ### 🙏 Acknowledgments
 
 - Inspired by modern web design trends
@@ -176,7 +195,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **🔖 快捷方式**: 创建常用网站的快捷方式，自动获取网站图标
 - **🖼️ 自定义壁纸**: 上传您自己的背景图片（最大 50MB，5000万像素），支持拖放上传
 - **🌅 必应每日壁纸**: 来自必应的精美每日壁纸，支持智能24小时缓存和预加载
-- **⚡ 高性能图片处理**: Web Worker 支持、渐进式预览、智能压缩
+- **⚡ 高性能图片处理**: Web Worker 支持、WebAssembly 加速、渐进式预览、智能压缩
 - **🌍 多语言支持**: 简体中文、繁体中文、日语、英语、西班牙语、法语、德语、俄语
 - **♿ 无障碍功能**: 高对比度主题、字体控制、动画设置、键盘快捷键
 - **⌨️ 键盘快捷键**: 快速切换搜索引擎 (Alt+↑↓)、聚焦搜索框 (/)、打开设置 (Alt+,)
@@ -257,6 +276,8 @@ GenresFox/
 │   ├── accessibility.js    # 无障碍功能模块
 │   ├── image-processor.js  # 高性能图片处理模块
 │   ├── image-worker.js     # Web Worker 后台图片处理
+│   ├── resize.wasm         # 预编译的 WASM 图片缩放模块
+│   ├── wasm-resize/        # WASM 源代码（Rust）- 仅开发者需要
 │   ├── styles.css          # 主样式文件
 │   ├── search.css          # 搜索栏样式文件
 │   └── accessibility.css   # 无障碍样式文件
@@ -266,9 +287,10 @@ GenresFox/
 
 #### 技术栈
 - **Manifest V3**: 最新的 Chrome 扩展标准
-- **原生 JavaScript**: 无框架依赖，纯粹的性能
+- **原生 JavaScript**: 纯粹的性能
 - **CSS3**: 现代样式与玻璃态效果
 - **Web Workers**: 后台图片处理，不阻塞 UI
+- **WebAssembly**: 大图片高性能缩放处理
 - **IndexedDB**: 用于存储大型壁纸文件和缓存
 - **LocalStorage**: 用于持久化设置和元数据缓存
 - **Chrome 扩展 API**: 用于国际化和浏览器集成
@@ -306,6 +328,22 @@ GenresFox/
 **KafuuChino**
 
 - GitHub: [@KafuuChino](https://github.com/lian5727557)
+
+### 🔒 安全与透明度
+
+WASM 模块 (`resize.wasm`) **100% 开源且可审计**：
+
+- ✅ **无后门** - 所有源代码位于 `src/wasm-resize/src/lib.rs`
+- ✅ **零外部依赖** - 已验证：`cargo tree` 仅显示项目本身，无第三方依赖
+- ✅ **无构建时依赖** - 无需 `cargo fetch`，仅使用 Rust 标准库（已随 Rust 安装包含）
+- ✅ **完全可审计** - 您可以审查、编译和验证代码
+- ✅ **无网络请求** - WASM 模块仅执行图片缩放，不传输任何数据
+- ✅ **无文件系统访问** - 完全在内存中运行
+- 📄 完整安全声明和依赖列表请查看 `src/wasm-resize/SECURITY.md`
+
+**对于最终用户**：已包含预编译的 WASM 文件 - 无需 Rust 或编译！
+
+**对于开发者**：安装 Rust 后即可立即构建 - 零依赖需要下载。
 
 ### 🙏 致谢
 
