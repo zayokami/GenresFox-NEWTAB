@@ -743,27 +743,6 @@ const ImageProcessor = (function() {
             useWorker = true
         } = options;
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H1',
-                location:'image-processor.js:processImage:start',
-                message:'processImage start',
-                data:{
-                    fileSize:file && file.size,
-                    useWorker,
-                    useCache,
-                    workerReadyCount:_state.workerReadyCount
-                },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
-        
         try {
             // Validate file size
             if (file.size > CONFIG.MAX_FILE_SIZE) {
@@ -852,23 +831,6 @@ const ImageProcessor = (function() {
                     
                 } catch (workerError) {
                     console.warn('Worker processing failed, falling back to main thread:', workerError);
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                        method:'POST',
-                        headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({
-                            sessionId:'debug-session',
-                            runId:'pre-fix-1',
-                            hypothesisId:'H1',
-                            location:'image-processor.js:processImage:workerError',
-                            message:'Worker processing error',
-                            data:{
-                                error:String(workerError && workerError.message || workerError)
-                            },
-                            timestamp:Date.now()
-                        })
-                    }).catch(()=>{});
-                    // #endregion
                     // Fall through to main thread processing
                 }
             }
@@ -919,29 +881,7 @@ const ImageProcessor = (function() {
                 processingTime: Math.round(endTime - startTime)
             };
             
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    sessionId:'debug-session',
-                    runId:'pre-fix-1',
-                    hypothesisId:'H1',
-                    location:'image-processor.js:processImage:end',
-                    message:'processImage end',
-                    data:{
-                        fileSize:file && file.size,
-                        usedWorker,
-                        processingTime:result.processingTime,
-                        originalSize:result.originalSize,
-                        processedSize:result.processedSize
-                    },
-                    timestamp:Date.now()
-                })
-            }).catch(()=>{});
-            // #endregion
-
-            console.log(`Processed in ${result.processingTime}ms: ${file.size} → ${blob.size} bytes`);
+            console.log(`Processed in ${result.processingTime}ms: ${file.size} ${blob.size} bytes`);
             
             // Cache result
             if (useCache) {
@@ -1044,6 +984,6 @@ if (typeof window !== 'undefined') {
 /**
  * Give a civilisation to the years, not years to a civilisation. 
  * 给岁月以文明，而不是给文明以岁月。
- * — From "The Three-Body Problem: Death's End".
- * — 出自《三体3：死神永生》。
+ * From "The Three-Body Problem: Death's End".
+ * 出自《三体：死神永生》
 */

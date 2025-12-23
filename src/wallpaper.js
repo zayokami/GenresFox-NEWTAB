@@ -321,7 +321,7 @@ const WallpaperManager = (function () {
                     // Ignore quota errors
                 }
             } catch (_) {
-                // Silent failure – preview is purely best-effort
+                // Silent failure. Preview is purely best-effort.
             }
         }, 2000);
     }
@@ -331,24 +331,6 @@ const WallpaperManager = (function () {
      * @param {string} url - Wallpaper URL (can be blob URL or data URL)
      */
     function _setWallpaper(url) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'wallpaper-black-flash-1',
-                hypothesisId:'WB1',
-                location:'wallpaper.js:_setWallpaper',
-                message:'setWallpaper called',
-                data:{
-                    urlKind: !url ? 'empty' : (url === 'none' ? 'none' : (url.startsWith('blob:') ? 'blob' : (url.startsWith('data:') ? 'data' : 'http'))),
-                    source:_state.wallpaperSource
-                },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
         // Revoke old blob URL to prevent memory leaks
         if (_state.currentWallpaperUrl &&
             _state.currentWallpaperUrl.startsWith('blob:') &&
@@ -909,38 +891,105 @@ const WallpaperManager = (function () {
         _bingWallpaperPromise = (async () => {
             const today = _getDateString(0);
             
-            // Check IndexedDB cache first
-            const cachedBlob = await _getBingImageFromCache(today);
-            if (cachedBlob) {
-                // Get cached info from localStorage
-                const cachedInfo = _getBingWallpaperInfoCache();
-                return {
-                    blob: cachedBlob,
-                    info: cachedInfo || { date: today, title: 'Bing Daily Wallpaper' }
-                };
+            // Always try to fetch fresh wallpaper info from API first
+            // This ensures we get the latest Bing wallpaper even if cache exists
+            let info = null;
+            try {
+                info = await _fetchBingWallpaperInfo(0);
+                } catch (e) {
+                console.warn('Failed to fetch Bing wallpaper info, will try cache:', e);
             }
             
-            // Fetch fresh wallpaper info
-            const info = await _fetchBingWallpaperInfo(0);
-            if (!info) {
-                return null;
+            // If API returned info, check if we need to update
+            if (info) {
+                try {
+                    // Normalize the date from API response (Bing API uses YYYYMMDD format)
+                    const apiDate = info.date || today;
+                    // Remove any non-digit characters and take first 8 digits (YYYYMMDD)
+                    const normalizedApiDate = apiDate.toString().replace(/\D/g, '').substring(0, 8);
+                    
+                    // Check if cached blob exists and matches API date
+                    let cachedBlob = null;
+                    try {
+                        cachedBlob = await _getBingImageFromCache(normalizedApiDate);
+                        } catch (e) {
+                        console.warn('Failed to get Bing cache, will download fresh:', e);
+                    }
+                    
+                    const cachedInfo = _getBingWallpaperInfoCache();
+                    const cachedDate = cachedInfo?.date ? cachedInfo.date.toString().replace(/\D/g, '').substring(0, 8) : null;
+                    
+                    // If cache exists and dates match, use cache
+                    if (cachedBlob && cachedDate === normalizedApiDate) {
+                        console.log(`Using cached Bing wallpaper (date matches API: ${normalizedApiDate})`);
+                        return {
+                            blob: cachedBlob,
+                            info: cachedInfo || info
+                        };
+                    }
+                    
+                    // Cache miss or date mismatch - download fresh wallpaper
+                    console.log('Downloading fresh Bing wallpaper (cache miss or date mismatch)');
+                    const blob = await _downloadBingWallpaper(info);
+                    if (!blob) {
+                        // Download failed, try to use existing cache as fallback
+                        try {
+                            const fallbackBlob = await _getBingImageFromCache(today);
+                            if (fallbackBlob) {
+                                console.warn('Download failed, using existing cache as fallback');
+                                return {
+                                    blob: fallbackBlob,
+                                    info: cachedInfo || { date: today, title: 'Bing Daily Wallpaper' }
+                                };
+                            }
+                        } catch (e) {
+                            console.warn('Fallback cache also failed:', e);
+                        }
+                        return null;
+                    }
+                    
+                    // Cache the new wallpaper (with error isolation)
+                    try {
+                        await _saveBingImageToCache(normalizedApiDate, blob, info);
+                        _saveBingWallpaperInfoCache(info);
+                    } catch (e) {
+                        console.warn('Failed to save Bing cache, but wallpaper is available:', e);
+                        // Continue even if caching fails
+                    }
+                    
+                    return { blob, info };
+                } catch (e) {
+                    console.error('Error in Bing wallpaper update logic:', e);
+                    // Fall through to cache fallback
+                }
             }
             
-            // Download the image
-            const blob = await _downloadBingWallpaper(info);
-            if (!blob) {
-                return null;
+            // API fetch failed or update logic failed - fallback to cache if available
+            console.log('API fetch failed, checking cache...');
+            try {
+                const cachedBlob = await _getBingImageFromCache(today);
+                if (cachedBlob) {
+                    const cachedInfo = _getBingWallpaperInfoCache();
+                    console.log('Using cached Bing wallpaper (API unavailable)');
+                    return {
+                        blob: cachedBlob,
+                        info: cachedInfo || { date: today, title: 'Bing Daily Wallpaper' }
+                    };
+                }
+            } catch (e) {
+                console.warn('Cache fallback also failed:', e);
             }
             
-            // Cache both the blob and info
-            await _saveBingImageToCache(today, blob, info);
-            _saveBingWallpaperInfoCache(info);
-            
-            return { blob, info };
+            // No cache and API failed
+            console.warn('Could not get Bing wallpaper: API failed and no cache available');
+            return null;
         })();
 
         try {
             return await _bingWallpaperPromise;
+        } catch (e) {
+            console.error('Unexpected error in _getBingWallpaper:', e);
+            return null;
         } finally {
             _bingWallpaperPromise = null;
         }
@@ -1067,21 +1116,6 @@ const WallpaperManager = (function () {
      * @returns {Promise<boolean>} Whether successful
      */
     async function _applyBingWallpaper() {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H2',
-                location:'wallpaper.js:_applyBingWallpaper:start',
-                message:'applyBingWallpaper start',
-                data:{},
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
         try {
             // Get wallpaper (from cache or download)
             const result = await _getBingWallpaper();
@@ -1107,46 +1141,9 @@ const WallpaperManager = (function () {
             // Schedule preload of tomorrow's wallpaper
             _preloadTomorrowBingWallpaper();
             
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    sessionId:'debug-session',
-                    runId:'pre-fix-1',
-                    hypothesisId:'H2',
-                    location:'wallpaper.js:_applyBingWallpaper:success',
-                    message:'applyBingWallpaper success',
-                    data:{
-                        hasInfo:!!info,
-                        date:info && info.date,
-                        title:info && info.title
-                    },
-                    timestamp:Date.now()
-                })
-            }).catch(()=>{});
-            // #endregion
-
             return true;
         } catch (e) {
             console.error('Failed to apply Bing wallpaper:', e);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    sessionId:'debug-session',
-                    runId:'pre-fix-1',
-                    hypothesisId:'H2',
-                    location:'wallpaper.js:_applyBingWallpaper:error',
-                    message:'applyBingWallpaper error',
-                    data:{
-                        error:String(e && e.message || e)
-                    },
-                    timestamp:Date.now()
-                })
-            }).catch(()=>{});
-            // #endregion
             return false;
         }
     }
@@ -1859,22 +1856,6 @@ const WallpaperManager = (function () {
      */
     async function _loadWallpaper() {
         let wallpaperLoaded = false;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'wallpaper-black-flash-1',
-                hypothesisId:'WB2',
-                location:'wallpaper.js:_loadWallpaper:start',
-                message:'loadWallpaper start',
-                data:{},
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
-
         // Check saved wallpaper source preference (clean up legacy values)
         let savedSource = localStorage.getItem(CONFIG.STORAGE_KEYS.WALLPAPER_SOURCE);
         if (savedSource && savedSource !== CONFIG.WALLPAPER_SOURCES.BING && savedSource !== CONFIG.WALLPAPER_SOURCES.CUSTOM) {
@@ -1921,19 +1902,6 @@ const WallpaperManager = (function () {
             try {
                 // Don't block UI on network; kick off Bing fetch in background when idle
                 _runWhenIdle(() => {
-                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                        method:'POST',
-                        headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({
-                            sessionId:'debug-session',
-                            runId:'wallpaper-black-flash-1',
-                            hypothesisId:'WB2',
-                            location:'wallpaper.js:_loadWallpaper:idleBing',
-                            message:'schedule async Bing apply',
-                            data:{},
-                            timestamp:Date.now()
-                        })
-                    }).catch(()=>{});
                     _applyBingWallpaper().catch((e) => console.warn('Failed to load Bing wallpaper (async):', e));
                 }, 1500);
                 wallpaperLoaded = true; // allow UI to continue with transparent/previous state
@@ -1948,22 +1916,6 @@ const WallpaperManager = (function () {
         }
 
         _updateResetButtonState();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'wallpaper-black-flash-1',
-                hypothesisId:'WB2',
-                location:'wallpaper.js:_loadWallpaper:end',
-                message:'loadWallpaper end',
-                data:{ wallpaperLoaded, source:_state.wallpaperSource },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
 
         return wallpaperLoaded;
     }

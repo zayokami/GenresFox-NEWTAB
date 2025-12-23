@@ -455,8 +455,12 @@ function _openIconCacheDB() {
                 db.createObjectStore(ICON_CACHE_STORE, { keyPath: 'key' });
             }
         };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            reject(request.error);
+        };
     });
     return _iconCacheDbPromise;
 }
@@ -475,44 +479,9 @@ async function _getIconFromDB(key) {
         const req = store.get(key);
         req.onsuccess = () => {
             const entry = req.result || null;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    sessionId:'debug-session',
-                    runId:'pre-fix-1',
-                    hypothesisId:'H3',
-                    location:'script.js:_getIconFromDB:onsuccess',
-                    message:'_getIconFromDB result',
-                    data:{
-                        key,
-                        hasEntry:!!entry,
-                        version:entry && entry.version,
-                        status:entry && entry.status
-                    },
-                    timestamp:Date.now()
-                })
-            }).catch(()=>{});
-            // #endregion
             resolve(entry);
         };
         req.onerror = () => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    sessionId:'debug-session',
-                    runId:'pre-fix-1',
-                    hypothesisId:'H3',
-                    location:'script.js:_getIconFromDB:error',
-                    message:'_getIconFromDB error',
-                    data:{ key },
-                    timestamp:Date.now()
-                })
-            }).catch(()=>{});
-            // #endregion
             reject(req.error);
         };
     });
@@ -531,8 +500,12 @@ async function _putIconToDB(key, dataUrl) {
             version: ICON_CACHE_VERSION 
         };
         store.put(record);
-        tx.oncomplete = () => resolve(record);
-        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => {
+            resolve(record);
+        };
+        tx.onerror = () => {
+            reject(tx.error);
+        };
     });
 }
 
@@ -581,22 +554,6 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
 
     const task = (async () => {
         const candidates = _buildIconCandidates(rawIconUrl, pageUrl);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H3',
-                location:'script.js:cacheIcon:start',
-                message:'cacheIcon start',
-                data:{ key, candidates:candidates.slice(0,3) },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
-
         for (const candidate of candidates) {
             try {
                 const dataUrl = await _fetchIconAsDataUrl(candidate);
@@ -605,21 +562,6 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
                 _updateImagesForKey(key, dataUrl);
                 // Keep legacy localStorage for backward compatibility
                 localStorage.setItem(`icon_cache_${key}`, dataUrl);
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({
-                        sessionId:'debug-session',
-                        runId:'pre-fix-1',
-                        hypothesisId:'H3',
-                        location:'script.js:cacheIcon:successFetch',
-                        message:'cacheIcon success via fetch',
-                        data:{ key, candidate },
-                        timestamp:Date.now()
-                    })
-                }).catch(()=>{});
-                // #endregion
                 return;
             } catch (fetchErr) {
                 // If fetch failed, try canvas-based fallback
@@ -629,21 +571,6 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
                     await _putIconToDB(key, dataUrl);
                     _updateImagesForKey(key, dataUrl);
                     localStorage.setItem(`icon_cache_${key}`, dataUrl);
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-                        method:'POST',
-                        headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({
-                            sessionId:'debug-session',
-                            runId:'pre-fix-1',
-                            hypothesisId:'H3',
-                            location:'script.js:cacheIcon:successImage',
-                            message:'cacheIcon success via image',
-                            data:{ key, candidate },
-                            timestamp:Date.now()
-                        })
-                    }).catch(()=>{});
-                    // #endregion
                     return;
                 } catch (imgErr) {
                     // Continue to next candidate
@@ -651,21 +578,6 @@ async function cacheIcon(key, rawIconUrl, pageUrl) {
             }
         }
         console.warn(`Failed to cache icon: ${key}`);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H3',
-                location:'script.js:cacheIcon:failed',
-                message:'cacheIcon all candidates failed',
-                data:{ key },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
         // Mark this key as failed so future getIconSrc() calls won't keep retrying
         const failedEntry = {
             key,
@@ -695,21 +607,6 @@ function getIconSrc(key, url, pageUrl) {
     const mem = _iconCacheInMemory.get(key);
     if (mem && _isIconFresh(mem)) {
         const isFailed = mem.status === 'failed' || !mem.data;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H3',
-                location:'script.js:getIconSrc:mem',
-                message:'getIconSrc memory hit',
-                data:{ key, status: mem.status || (isFailed ? 'failed' : 'ok') },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
         if (isFailed) {
             return preferredUrl;
         }
@@ -719,21 +616,6 @@ function getIconSrc(key, url, pageUrl) {
     // 2) Legacy localStorage (migrate to DB asynchronously)
     const legacy = localStorage.getItem(`icon_cache_${key}`);
     if (legacy) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                sessionId:'debug-session',
-                runId:'pre-fix-1',
-                hypothesisId:'H3',
-                location:'script.js:getIconSrc:legacy',
-                message:'getIconSrc legacy hit',
-                data:{ key },
-                timestamp:Date.now()
-            })
-        }).catch(()=>{});
-        // #endregion
         // Treat legacy localStorage entry as fresh for this session so we don't refetch every render
         _iconCacheInMemory.set(key, { data: legacy, updatedAt: Date.now(), version: ICON_CACHE_VERSION, status: 'ok' });
         _putIconToDB(key, legacy).catch(() => {});
@@ -754,6 +636,7 @@ function getIconSrc(key, url, pageUrl) {
                 return;
             }
             // For failed entries, don't retry cacheIcon; just rely on preferredUrl
+            return; // Fix: explicitly return to prevent retry
         } else if (entry && entry.data) {
             // Stale: show it first, then refresh
             _iconCacheInMemory.set(key, entry);
@@ -764,24 +647,11 @@ function getIconSrc(key, url, pageUrl) {
             cacheIcon(key, preferredUrl, pageUrl);
             return;
         }
-    }).catch(() => cacheIcon(key, preferredUrl, pageUrl));
+    }).catch((err) => {
+        cacheIcon(key, preferredUrl, pageUrl);
+    });
 
     // 4) Fallback to live URL while cache resolves
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/751b1d1b-8840-4313-824c-084ba8b745ba',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-            sessionId:'debug-session',
-            runId:'pre-fix-1',
-            hypothesisId:'H3',
-            location:'script.js:getIconSrc:fallback',
-            message:'getIconSrc fallback preferredUrl',
-            data:{ key, preferredUrl },
-            timestamp:Date.now()
-        })
-    }).catch(()=>{});
-    // #endregion
     return preferredUrl;
 }
 
@@ -1075,9 +945,9 @@ window.deleteShortcut = (index, options = {}) => {
             const lang = (window.I18n && I18n.getCurrentLanguage && I18n.getCurrentLanguage()) ||
                 (navigator.language || '').toLowerCase();
             if (lang.startsWith('zh')) {
-                message = '确认删除快捷方式“%s”？';
+                message = '确认删除快捷方式"%s"？';
             } else if (lang.startsWith('ja')) {
-                message = 'ショートカット「%s」を削除しますか？';
+                message = 'ショートカット"%s"を削除しますか？';
             } else {
                 message = 'Delete shortcut "%s"?';
             }
