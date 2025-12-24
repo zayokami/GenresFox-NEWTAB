@@ -5,6 +5,57 @@ All notable changes to GenresFox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-12-24
+
+### Performance Optimizations
+- **WASM Auto-Enable Logic**: Added proper state tracking and waiting mechanism for WASM loading
+  - WASM loading status tracking (unloaded/loading/loaded/failed)
+  - Wait for all workers to complete WASM loading before processing large images
+  - Prevents race conditions and ensures WASM is ready before use
+- **Worker Task Distribution**: Optimized worker task dispatching for better efficiency
+  - Batch task distribution instead of one-by-one processing
+  - Improved load balancing across available workers
+- **ImageBitmap Scaling Logic**: Fixed scaling strategy based on WASM availability
+  - Path A (WASM available): Pass original bitmap, let Worker use WASM for scaling
+  - Path B (WASM unavailable): Use browser's native high-quality scaling, then format conversion
+- **Cache Key Generation**: Improved cache key algorithm
+  - Switched from djb2 to FNV-1a hash algorithm for better collision resistance
+  - Include processing parameters (maxWidth, maxHeight) in cache keys to avoid collisions
+- **Chunked Processing Strategy**: Optimized processing strategy selection
+  - Based on pixel count instead of file size (more accurate for compressed images)
+  - Prefer multi-step scaling over chunked processing to avoid seam artifacts
+- **Multi-step Scaling Memory Leak**: Fixed memory accumulation in multi-step scaling
+  - Reuse two canvases alternately instead of accumulating all intermediate canvases
+  - Maximum of two canvases exist at any time during multi-step scaling
+
+### Bug Fixes
+- **Worker Initialization Race Condition**: Fixed worker initialization issues
+  - Added 10-second initialization timeout
+  - Wait for 'loaded' message before sending 'init' message (avoids race condition)
+  - Proper error handling and cleanup on worker failures
+- **Worker Callback Memory Leak**: Fixed memory leaks in worker callbacks
+  - Clean up callbacks in all failure paths
+  - Added 60-second timeout cleanup mechanism
+  - Clean up all pending callbacks when worker crashes
+- **Gmail Icon Fetching**: Fixed Gmail icon fetching failure on first load
+  - Changed default icon URL to use DuckDuckGo icon service (CORS-friendly)
+  - Prevents CORS issues and improves reliability
+- **Content Security Policy**: Fixed CSP configuration for WASM and inline scripts
+  - Added `'wasm-unsafe-eval'` to allow WebAssembly execution
+  - Moved inline script to external file (`inline-init.js`) to comply with CSP
+  - Extension now loads without CSP violations
+
+### Added
+- **WASM Status Query API**: Added `getWasmStatus()` method to public API
+  - Returns WASM availability, enabled state, loading status, threshold, and worker statistics
+  - Allows external code to query WASM state for debugging and monitoring
+
+### Changed
+- **WASM Module Optimization**: Improved WASM memory allocation
+  - Hot path memory allocation optimization using thread-local buffers
+  - Reuse Vec buffers to avoid repeated heap allocations
+  - Added uninitialized memory allocation for performance-critical buffers
+
 ## [0.4.0] - 2025-12-23
 
 ### Major Update: WebAssembly Acceleration

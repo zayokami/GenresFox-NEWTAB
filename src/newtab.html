@@ -10,20 +10,11 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="accessibility.css">
     <link rel="stylesheet" href="search.css">
+    <!-- Critical inline script moved to external file to comply with CSP -->
+    <script src="inline-init.js"></script>
 </head>
 
 <body>
-    <script>
-        (function () {
-            try {
-                var raw = localStorage.getItem('wallpaperPreviewSmall');
-                if (!raw) return;
-                var data = JSON.parse(raw);
-                if (!data || !data.dataUrl) return;
-                document.documentElement.style.setProperty('--wallpaper-image', 'url(' + data.dataUrl + ')');
-            } catch (e) { }
-        })();
-    </script>
     <!-- Main Content Container -->
     <div class="container">
         <div class="search-container fade-in delay-1">
@@ -321,7 +312,7 @@
                 <div class="tab-content" id="tab-about">
                     <div class="about-info">
                         <h3>GenresFox</h3>
-                        <p>Version 0.4.0</p>
+                        <p>Version 0.4.1</p>
                         <p data-i18n="aboutDescription">A fully open-source, extremely clean, and highly customizable new tab page extension.</p>
                         <p>&copy; 2025 zayoka. All rights reserved.</p>
                         <br>

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "GenresFox",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "A fully open-source, extremely clean, and highly customizable new tab page extension.",
     "default_locale": "en",
     "chrome_url_overrides": {
@@ -20,6 +20,9 @@
             "matches": ["<all_urls>"]
         }
     ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
     "icons": {
         "128": "icon.png"
     },
