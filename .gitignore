@@ -4,6 +4,7 @@
 .cursor/
 .cursorrules/
 .claude/
+CLAUDE.md
 *.suo
 *.ntvs*
 *.njsproj

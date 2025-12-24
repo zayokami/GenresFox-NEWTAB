@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Chrome](https://img.shields.io/badge/chrome-manifest%20v3-orange.svg)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zayokami/GenresFox)
@@ -100,6 +100,7 @@ GenresFox/
 │   ├── icon.png            # Extension icon
 │   ├── manifest.json       # Extension manifest
 │   ├── newtab.html         # Main HTML file
+│   ├── inline-init.js      # Critical initialization script (prevents wallpaper flicker)
 │   ├── script.js           # Main JavaScript logic
 │   ├── search.js           # Search bar & search button logic
 │   ├── i18n.js             # Internationalization module
@@ -269,6 +270,7 @@ GenresFox/
 │   ├── icon.png            # 扩展图标
 │   ├── manifest.json       # 扩展清单
 │   ├── newtab.html         # 主 HTML 文件
+│   ├── inline-init.js      # 关键初始化脚本（防止壁纸闪烁）
 │   ├── script.js           # 主 JavaScript 逻辑
 │   ├── search.js           # 搜索栏与搜索按钮逻辑
 │   ├── i18n.js             # 国际化模块

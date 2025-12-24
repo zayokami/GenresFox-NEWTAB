@@ -412,9 +412,16 @@ ctx.onmessage = async function(e) {
                 }
                 // Load WASM asynchronously if enabled (don't block ready signal)
                 if (CONFIG.WASM_ENABLED && CONFIG.WASM_URL) {
-                    loadWasm(CONFIG.WASM_URL).catch(err => {
-                        console.warn('[Worker] WASM initialization failed, will use Canvas fallback:', err);
-                    });
+                    loadWasm(CONFIG.WASM_URL)
+                        .then(() => {
+                            // Notify main thread that WASM loaded successfully
+                            ctx.postMessage({ type: 'wasmLoaded', id });
+                        })
+                        .catch(err => {
+                            console.warn('[Worker] WASM initialization failed, will use Canvas fallback:', err);
+                            // Notify main thread that WASM load failed
+                            ctx.postMessage({ type: 'wasmLoadFailed', id });
+                        });
                 }
                 ctx.postMessage({ type: 'ready', id });
                 break;

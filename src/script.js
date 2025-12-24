@@ -308,7 +308,8 @@ const defaultShortcuts = [
     { name: "YouTube", url: "https://youtube.com", icon: "https://www.youtube.com/favicon.ico" },
     // Use DuckDuckGo icon service for Bilibili to avoid region / CORS issues with site favicon
     { name: "Bilibili", url: "https://bilibili.com", icon: "https://icons.duckduckgo.com/ip3/bilibili.com.ico" },
-    { name: "Gmail", url: "https://mail.google.com", icon: "https://mail.google.com/favicon.ico" }
+    // Use DuckDuckGo icon service for Gmail to avoid CORS issues on first load
+    { name: "Gmail", url: "https://mail.google.com", icon: "https://icons.duckduckgo.com/ip3/mail.google.com.ico" }
 ];
 
 // State - with safe JSON parsing to handle corrupted data
