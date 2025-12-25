@@ -1466,7 +1466,5 @@ if (typeof window !== 'undefined') {
 
 /**
  * Give a civilisation to the years, not years to a civilisation. 
- * 给岁月以文明，而不是给文明以岁月。
  * From "The Three-Body Problem: Death's End".
- * 出自《三体：死神永生》
 */

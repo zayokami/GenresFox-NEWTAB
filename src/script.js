@@ -306,10 +306,9 @@ const defaultEngines = {
 const defaultShortcuts = [
     { name: "GitHub", url: "https://github.com", icon: "https://github.com/favicon.ico" },
     { name: "YouTube", url: "https://youtube.com", icon: "https://www.youtube.com/favicon.ico" },
-    // Use DuckDuckGo icon service for Bilibili to avoid region / CORS issues with site favicon
-    { name: "Bilibili", url: "https://bilibili.com", icon: "https://icons.duckduckgo.com/ip3/bilibili.com.ico" },
-    // Use DuckDuckGo icon service for Gmail to avoid CORS issues on first load
-    { name: "Gmail", url: "https://mail.google.com", icon: "https://icons.duckduckgo.com/ip3/mail.google.com.ico" }
+    // Use site's own favicon first; fallback to icon services if needed
+    { name: "Bilibili", url: "https://bilibili.com", icon: "https://bilibili.com/favicon.ico" },
+    { name: "Gmail", url: "https://mail.google.com", icon: "https://mail.google.com/favicon.ico" }
 ];
 
 // State - with safe JSON parsing to handle corrupted data
@@ -352,7 +351,8 @@ if (!shortcuts || !Array.isArray(shortcuts) || shortcuts.length === 0) {
     shortcuts.forEach((s) => {
         if (!s || typeof s.url !== 'string') return;
         if (s.url.includes('bilibili.com') && typeof s.icon === 'string' && s.icon.includes('www.bilibili.com')) {
-            s.icon = "https://icons.duckduckgo.com/ip3/bilibili.com.ico";
+            // Use site's own favicon instead of icon service to avoid CORS issues
+            s.icon = "https://bilibili.com/favicon.ico";
             migrated = true;
         }
     });
@@ -394,9 +394,9 @@ function saveShortcuts() {
 
 function getFavicon(url) {
     try {
-        const domain = new URL(url).hostname;
-        // DuckDuckGo icon service returns CORS-enabled .ico
-        return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+        const urlObj = new URL(url);
+        // Prefer site's own favicon (most reliable, no CORS issues)
+        return `${urlObj.origin}/favicon.ico`;
     } catch (e) {
         return "icon.png";
     }
@@ -411,22 +411,33 @@ function _buildIconCandidates(rawIconUrl, pageUrl) {
         seen.add(u);
     };
 
-    // Start with provided icon URL (if any)
-    if (rawIconUrl) add(rawIconUrl);
-
     const basisUrl = pageUrl || rawIconUrl;
     if (basisUrl) {
         try {
             const urlObj = new URL(basisUrl);
             const origin = urlObj.origin;
             const domain = urlObj.hostname;
+            // Prioritize site's own favicon first (most reliable, no CORS issues)
             add(`${origin}/favicon.ico`);
             add(`${origin}/apple-touch-icon.png`);
             add(`${origin}/apple-touch-icon-precomposed.png`);
-            // DuckDuckGo icon service (CORS)
-            add(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
-            // Google s2 (may be non-CORS; keep as late fallback)
+        } catch (e) {
+            // Ignore parse errors
+        }
+    }
+
+    // Then use provided icon URL (if any)
+    if (rawIconUrl) add(rawIconUrl);
+
+    // Finally, add icon services as fallbacks (may have CORS issues)
+    if (basisUrl) {
+        try {
+            const urlObj = new URL(basisUrl);
+            const domain = urlObj.hostname;
+            // Google s2 (more reliable than DuckDuckGo for some domains)
             add(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+            // DuckDuckGo icon service (may have CORS issues, use as last resort)
+            add(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
         } catch (e) {
             // Ignore parse errors
         }

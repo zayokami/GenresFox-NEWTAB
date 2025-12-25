@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 
 [profile.release]
-opt-level = "z"     # Optimize for size
-lto = true          # Enable link-time optimization
-codegen-units = 1   # Better optimization
+opt-level = "z"
+lto = true
+codegen-units = 1
 
