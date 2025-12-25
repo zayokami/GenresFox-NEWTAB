@@ -357,13 +357,24 @@ async function processImageDataWithWasm(imageData, targetWidth, targetHeight, on
                     }
                 }
             } catch (_) {
-                // Ignore get_last_error failures; we'll fall back to generic message
+                // Ignore get_last_error failures; we'll fall back to error code mapping
             }
-            if (errorMsg) {
-                console.warn(`[Worker] WASM resize failed with error code: ${errorCode}, message: ${errorMsg}`);
-            } else {
-                console.warn(`[Worker] WASM resize failed with error code: ${errorCode}`);
+            
+            // Fallback error message mapping if get_last_error fails
+            if (!errorMsg) {
+                const errorCodeMap = {
+                    1: 'NULL pointer',
+                    2: 'Invalid size or dimensions',
+                    3: 'Overflow in size calculation',
+                    4: 'Memory error',
+                    5: 'Pointer alignment error',
+                    6: 'Memory regions overlap'
+                };
+                errorMsg = errorCodeMap[errorCode] || `Unknown error (code: ${errorCode})`;
             }
+            
+            console.warn(`[Worker] WASM resize failed with error code: ${errorCode}, message: ${errorMsg}`);
+            
             // Clean up allocated memory
             if (typeof exports.dealloc_memory === 'function') {
                 exports.dealloc_memory(srcPtr, srcSize);
